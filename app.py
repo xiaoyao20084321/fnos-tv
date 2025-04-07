@@ -1,4 +1,4 @@
-﻿from flask import Flask, request
+from flask import Flask, request
 from Fuction import get_platform_link
 from Getdanmu import download_barrage, RetDanMuType
 
