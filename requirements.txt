@@ -5,3 +5,4 @@ retrying==1.3.4
 tqdm==4.66.5
 xmltodict==0.14.2
 gunicorn
+parsel
