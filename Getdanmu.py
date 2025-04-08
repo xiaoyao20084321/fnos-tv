@@ -309,6 +309,26 @@ class GetDanmuIqiyi(GetDanmuBase):
         parse_data = self.parse()
         return parse_data
 
+    def getImg(self, url):
+        _req = requests.Session(impersonate="chrome124")
+        res = _req.request("GET", url,
+                           headers={"Accept-Encoding": "gzip,deflate,compress"}, impersonate="chrome124")
+        res.encoding = "UTF-8"
+        tv_id = re.findall('"tvId":([0-9]+)', res.text)[0]
+
+        Imgurl = f'https://emoticon-sns.iqiyi.com/jaguar-core/danmu_config?qyId=36d9d90bed6d447b1b72be2cd7c8e4ba&qipuId=common&tvid={tv_id}'
+
+        res = _req.get(Imgurl)
+        emoji_data_list = []
+        for item in res.json().get('data', []):
+            emoji_data_list.append(
+                {
+                    'emoji_code': item.get('name'),
+                    'emoji_url': item.get('url'),
+                }
+            )
+        return emoji_data_list
+
 
 class GetDanmuMgtv(GetDanmuBase):
     name = "芒果TV"
