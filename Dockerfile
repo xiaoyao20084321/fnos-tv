@@ -1,10 +1,5 @@
 ﻿FROM python:3.12-slim
 
-
-COPY change-source.sh /change-source.sh
-RUN chmod +x /change-source.sh
-RUN sh /change-source.sh
-
 # 安装必要工具
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
