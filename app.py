@@ -38,11 +38,12 @@ def get_emoji():
     douban_id = request.args.get('douban_id')
     url_dict = get_platform_link(douban_id)
     emoji_data = {}
-    for c in GetDanmuBase.__subclasses__():
-        if c.domain in url_dict['1']:
-            data = c().getImg(url_dict['1'])
-            for d in data:
-                emoji_data[d['emoji_code']] = d['emoji_url']
+    for url in url_dict['1']:
+        for c in GetDanmuBase.__subclasses__():
+            if c.domain in url:
+                data = c().getImg(url)
+                for d in data:
+                    emoji_data[d['emoji_code']] = d['emoji_url']
     return emoji_data
 
 
