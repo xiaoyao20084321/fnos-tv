@@ -22,7 +22,7 @@ from Fuction import request_data
 class DanMuType:
     text: str = ''  # 弹幕文本
     time: int = 0  # 弹幕时间
-    mode: int = 1  # 弹幕模式
+    mode: int = 0  # 弹幕模式
     color: str = '#FFFFFF'  # 弹幕颜色
     border: bool = False  # 弹幕是否有描边
     style: dict = field(default_factory=dict)  # 弹幕自定义样式
