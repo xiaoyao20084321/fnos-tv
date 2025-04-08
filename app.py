@@ -1,6 +1,6 @@
 from flask import Flask, request
 from Fuction import get_platform_link
-from Getdanmu import download_barrage, RetDanMuType
+from Getdanmu import download_barrage, RetDanMuType, GetDanmuBase
 
 app = Flask(__name__)
 
@@ -31,6 +31,19 @@ def main():  # put application's code here
     else:
         danmu_data: RetDanMuType = download_barrage(url)
         return danmu_data.list
+
+
+@app.route('/danmu/getEmoji')
+def get_emoji():
+    douban_id = request.args.get('douban_id')
+    url_dict = get_platform_link(douban_id)
+    emoji_data = {}
+    for c in GetDanmuBase.__subclasses__():
+        if c.domain in url_dict['1']:
+            data = c().getImg(url_dict['1'])
+            for d in data:
+                emoji_data[d['emoji_code']] = d['emoji_url']
+    return emoji_data
 
 
 if __name__ == '__main__':

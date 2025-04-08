@@ -1,0 +1,45 @@
+worker_processes  auto;
+error_log  /var/log/nginx/error.log warn;
+pid        /var/run/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    sendfile        on;
+    keepalive_timeout  65;
+
+    server {
+        listen       80;
+        server_name  _;
+
+        # 静态文件直接由 nginx 提供
+        location / {
+            root /app/dist/;
+            try_files $uri $uri/ /index.html;
+        }
+
+        # 其他请求反向代理到 Gunicorn
+        location /fnos {
+            proxy_ssl_server_name on;
+            rewrite ^/fnos(/.*)$ $1 break;
+            proxy_pass         ${FNOS_URL};
+            proxy_set_header   X-Real-IP $remote_addr;
+            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto $scheme;
+        }
+        
+        # 其他请求反向代理到 Gunicorn
+        location /danmu {
+            proxy_pass         http://127.0.0.1:8000;
+            proxy_set_header   Host $host;
+            proxy_set_header   X-Real-IP $remote_addr;
+            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto $scheme;
+        }
+    }
+}
