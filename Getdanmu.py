@@ -165,9 +165,12 @@ class GetDanmuTencent(GetDanmuBase):
     def main(self, url):
         self.data_list = []
         res = request_data("GET", url)
+        res.encoding = res.apparent_encoding
         sel = parsel.Selector(res.text)
         title = sel.xpath('//title/text()').get().split('_')[0]
-        vid = re.findall(f'"title":"{title}","vid":"(.*?)"', res.text)[-1]
+        vid = re.findall(f'"title":"{title}","vid":"(.*?)"', res.text)
+        if vid:
+            vid = vid[-1]
         if not vid:
             vid = re.search("/([a-zA-Z0-9]+)\.html", url)
             if vid:
