@@ -45,6 +45,7 @@ RUN chmod +x /docker-entrypoint.sh
 EXPOSE 80
 
 # 启动 supervisor（它会同时拉起 nginx 和 gunicorn）
-ENTRYPOINT ["/docker-entrypoint.sh"]
+#ENTRYPOINT ["/docker-entrypoint.sh"]
+ENTRYPOINT ["//entrypoint.sh"]
 
 CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
