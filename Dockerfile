@@ -6,6 +6,7 @@ RUN apt-get update && \
       nginx \
       curl \
       jq \
+      unzip \
       supervisor \
       gettext-base && \
     rm -rf /var/lib/apt/lists/*
