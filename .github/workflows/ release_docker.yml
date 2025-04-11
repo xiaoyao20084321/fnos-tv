@@ -3,6 +3,7 @@
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -41,6 +42,7 @@ jobs:
         run: echo "TAG=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: 推送docker镜像
+        if: ${{ env.TAG != '' }}
         uses: docker/build-push-action@v5
         with:
           context: .
