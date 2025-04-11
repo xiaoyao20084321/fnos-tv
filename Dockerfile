@@ -5,6 +5,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       nginx \
       curl \
+      jq \
       supervisor \
       gettext-base && \
     rm -rf /var/lib/apt/lists/*
