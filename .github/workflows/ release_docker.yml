@@ -42,7 +42,7 @@ jobs:
         run: echo "TAG=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: 推送docker镜像
-        if: ${{ env.TAG != '' }}
+        if: ${{ env.TAG != '' && env.TAG != 'master' }}
         uses: docker/build-push-action@v5
         with:
           context: .
