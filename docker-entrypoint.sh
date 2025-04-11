@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 set -e
 
 if [ "$RUN_AND_UPDATE_WEB" = "true" ]; then
