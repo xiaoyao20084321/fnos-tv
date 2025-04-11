@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+﻿#!/bin/sh
 set -euo pipefail
 
 # 配置仓库信息及 GitHub API 地址
