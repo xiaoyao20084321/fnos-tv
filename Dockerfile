@@ -37,6 +37,10 @@ RUN chmod +x /entrypoint.sh
 COPY update_dist.sh ./update_dist.sh
 RUN chmod +x ./update_dist.sh
 
+# 添加新的 docker-entrypoint.sh
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
 # 暴露 HTTP 端口
 EXPOSE 80
 
