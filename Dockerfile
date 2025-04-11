@@ -12,7 +12,9 @@ RUN apt-get update && \
 WORKDIR /app
 
 ARG FNOS_URL
+ARG RUN_AND_UPDATE_WEB=false
 ENV FNOS_URL=${FNOS_URL}
+ENV RUN_AND_UPDATE_WEB=${RUN_AND_UPDATE_WEB}
 
 # 复制并安装 Python 依赖
 COPY requirements.txt .
@@ -29,9 +31,13 @@ COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+COPY update_dist.sh ./update_dist.sh
+RUN chmod +x ./update_dist.sh
+
 # 暴露 HTTP 端口
 EXPOSE 80
 
 # 启动 supervisor（它会同时拉起 nginx 和 gunicorn）
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/bin/sh", "-c", "if [ \"$RUN_AND_UPDATE_WEB\" = \"true\" ]; then /update_dist.sh; fi; exec /entrypoint.sh"]
+
 CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
