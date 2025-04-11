@@ -41,6 +41,6 @@ RUN chmod +x ./update_dist.sh
 EXPOSE 80
 
 # 启动 supervisor（它会同时拉起 nginx 和 gunicorn）
-ENTRYPOINT ["/bin/bash", "-c", "if [ \"$RUN_AND_UPDATE_WEB\" = \"true\" ]; then ./update_dist.sh; fi; exec /entrypoint.sh"]
+ENTRYPOINT ["/bin/bash", "-c", "if [ \"$RUN_AND_UPDATE_WEB\" = \"true\" ]; then ./update_dist.sh; fi;", "/entrypoint.sh"]
 
 CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
