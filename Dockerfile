@@ -1,12 +1,9 @@
-﻿FROM python:3.12-slim
+FROM python:3.12-slim
 
 # 安装必要工具
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       nginx \
-      curl \
-      jq \
-      unzip \
       supervisor \
       gettext-base && \
     rm -rf /var/lib/apt/lists/*
@@ -33,19 +30,10 @@ COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 # 复制启动脚本
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-
-COPY update_dist.sh ./update_dist.sh
-RUN chmod +x ./update_dist.sh
-
-# 添加新的 docker-entrypoint.sh
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
-
 # 暴露 HTTP 端口
 EXPOSE 80
 
 # 启动 supervisor（它会同时拉起 nginx 和 gunicorn）
-#ENTRYPOINT ["/docker-entrypoint.sh"]
-ENTRYPOINT ["//entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]
 
 CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
