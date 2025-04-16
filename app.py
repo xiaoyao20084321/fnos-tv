@@ -3,6 +3,7 @@ import logging
 import requests
 from flask import Flask, request
 
+import Config
 from Config import fnos_url
 from Fuction import get_platform_link, douban_select, douban_get_first_url, find_skipped_segments, \
     calculate_repeat_rate, merge_skipped_segments
@@ -112,6 +113,14 @@ def skip_list():
         'code': 0,
         'data': merge_skipped_segments(ret_data)
     }
+
+
+@app.get('/api/getFnUrl')
+def get_fn_url():
+    _fnos_url = Config.fnos_url
+    if _fnos_url.endswith("/"):
+        _fnos_url = _fnos_url[:-1]
+    return _fnos_url
 
 
 # 创建表
