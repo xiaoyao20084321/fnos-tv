@@ -1,16 +1,35 @@
+import logging
+
+import requests
 from flask import Flask, request
 
-from Fuction import get_platform_link
+from Config import fnos_url
+from Fuction import get_platform_link, douban_select, douban_get_first_url, find_skipped_segments, \
+    calculate_repeat_rate, merge_skipped_segments
 from Getdanmu import download_barrage, RetDanMuType, GetDanmuBase
+from core.db.base import CRUDBase
+from core.db.db import engine
+from core.db.model import Base
+from core.db.model.recordDb import RecordDb
 
 app = Flask(__name__)
+app.logger.setLevel(logging.INFO)
 
 
 @app.route('/danmu/get')
 def main():  # put application's code here
-    douban_id = request.args.get('douban_id')
-    episode_number = request.args.get('episode_number')
-    url = request.args.get('url')
+    try:
+        douban_id = request.args.get('douban_id')
+        episode_number = request.args.get('episode_number')
+        title = request.args.get('title')
+        season_number = request.args.get('season_number')
+        season = True if request.args.get('season') == 'true' else False
+        url = request.args.get('url')
+    except Exception as e:
+        return {
+            "code": -1,
+            "msg": '解析参数失败'
+        }
     all_danmu_data = {}
     if url is None:
         if episode_number:
@@ -48,5 +67,54 @@ def get_emoji():
     return emoji_data
 
 
+@app.post('/fnos/v/api/v1/play/record')
+def record():
+    """
+    记录播放记录，推算跳过片段
+    :return: 
+    """
+    data = request.json
+    # 转发到飞牛原始接口
+    res = requests.post(f"{fnos_url}/v/api/v1/play/record", json=data, headers={
+        "Cookie": request.headers.get('Cookie'),
+        "authorization": request.headers.get('authorization'),
+        "authx": request.headers.get('authx'),
+    })
+    record_db = CRUDBase(RecordDb)
+    record_db.add(
+        guid=data.get("guid"),
+        episode_guid=data.get("item_guid"),
+        time=data.get("ts"),
+        create_time=data.get("create_time"),
+        playback_speed=data.get("playback_speed"),
+    )
+    return res.json()
+    # return 'ok'
+
+
+@app.get('/api/skipList')
+def skip_list():
+    data = request.args
+    guid = data.get("guid")
+    record_db = CRUDBase(RecordDb)
+    # record_data_list = record_db.session.query(record_db.model).filter(RecordDb.guid==guid).group_by(RecordDb.episode_guid).all()
+    record_data_dict = record_db.group_by('episode_guid', guid=guid)
+    skipped_segments = {}
+    for key, value in record_data_dict.items():
+        skipped_segments[key] = find_skipped_segments(value)
+    ret_data = []
+    if len(skipped_segments) >= 3:
+        success_data = calculate_repeat_rate(skipped_segments)
+        for item in success_data:
+            ret_data += item['data']
+
+    return {
+        'code': 0,
+        'data': merge_skipped_segments(ret_data)
+    }
+
+
+# 创建表
+Base.metadata.create_all(engine)
 if __name__ == '__main__':
     app.run()

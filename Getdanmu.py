@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import List
 from urllib.parse import urljoin
 from venv import logger
+from jsonpath_ng import jsonpath, parse
 
 import parsel
 import xmltodict
@@ -16,7 +17,7 @@ from curl_cffi import requests
 from retrying import retry
 from tqdm import tqdm
 
-from Fuction import request_data
+from Fuction import request_data, get_md5
 
 
 @dataclass
@@ -138,6 +139,9 @@ class GetDanmuBase(object):
             m *= 60
         return s
 
+    def get_episode_url(self, url: str) -> dict[str, str]:
+        return {}
+
 
 class GetDanmuTencent(GetDanmuBase):
     name = "腾讯视频"
@@ -225,6 +229,54 @@ class GetDanmuTencent(GetDanmuBase):
                 }
             )
         return emoji_data_list
+
+    def get_episode_url(self, url: str) -> dict[str, str]:
+        res = request_data("GET", url)
+        res.encoding = res.apparent_encoding
+        sel = parsel.Selector(res.text)
+        title = sel.xpath('//title/text()').get().split('_')[0]
+        vid = re.findall(f'"title":"{title}","vid":"(.*?)"', res.text)
+        if vid:
+            vid = vid[-1]
+        if not vid:
+            vid = re.search("/([a-zA-Z0-9]+)\.html", url)
+            if vid:
+                vid = vid.group(1)
+        cid = re.findall('"cid":"(.*?)"', res.text)[0]
+        if not vid:
+            return self.error("解析vid失败，请检查链接是否正确")
+
+        url = 'https://pbaccess.video.qq.com/trpc.universal_backend_service.page_server_rpc.PageServer/GetPageData'
+        data = {
+            "page_params": {
+                "req_from": "web_vsite",
+                "page_id": "vsite_episode_list",
+                "page_type": "detail_operation",
+                "id_type": "1",
+                "page_size": "",
+                "cid": cid,
+                "vid": vid,
+                "lid": "",
+                "page_num": "",
+                "page_context": "",
+                "detail_page_type": "1"
+            },
+            "has_cache": 1
+        }
+        res = request_data("POST", url, json=data, headers={
+            'referer': 'https://v.qq.com/',
+            'Cookie': 'video_platform=2; vversion_name=8.2.95'
+        })
+        json_data = res.json().get('data', {})
+        data_list = json_data.get("module_list_datas", [{}])[0].get('module_datas', [{}])[0].get('item_data_lists',
+                                                                                                 {}).get('item_datas',
+                                                                                                         [])
+        url_dict = {}
+        for item in data_list:
+            item_params = item.get('item_params')
+            url_dict[item_params.get(
+                'title')] = f'https://v.qq.com/x/cover/{item_params.get("cid")}/{item_params.get("vid")}.html'
+        return url_dict
 
 
 class GetDanmuBilibili(GetDanmuBase):
@@ -332,6 +384,30 @@ class GetDanmuIqiyi(GetDanmuBase):
                 }
             )
         return emoji_data_list
+
+    def get_episode_url(self, url):
+        _req = requests.Session(impersonate="chrome124")
+        res = _req.request("GET", url,
+                           headers={"Accept-Encoding": "gzip,deflate,compress"}, impersonate="chrome124")
+        res.encoding = "UTF-8"
+        js_url = re.findall(r'<script src="(.*?)" referrerpolicy="no-referrer-when-downgrade">', res.text)[0]
+        res = _req.request('GET', f'https:{js_url}', headers={'referer': url})
+        tv_id = re.findall('"tvId":([0-9]+)', res.text)[0]
+        params = f'entity_id={tv_id}&src=pca_tvg&timestamp={int(time.time())}&secret_key=howcuteitis'
+        url = f'https://mesh.if.iqiyi.com/tvg/v2/lw/base_info?{params}&sign={get_md5(params).upper()}'
+        res = _req.request('GET', url, headers={'referer': url})
+        jsonpath_expr = parse('$..bk_title')
+        matches = [match for match in jsonpath_expr.find(res.json())]
+        result_objs = [match.context.value for match in matches if match.value == "选集"]
+        url_dict = {}
+        for result_obj in result_objs:
+            d = result_obj.get('data', {}).get('data', [{}])[0].get('videos', {}).get('feature_paged', {})
+
+            for item in d[list(d.keys())[0]]:
+                if item.get('page_url'):
+                    url_dict[f'{item.get('album_order')}'] = item.get('page_url')
+
+        return url_dict
 
 
 class GetDanmuMgtv(GetDanmuBase):

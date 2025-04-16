@@ -6,3 +6,6 @@ tqdm==4.66.5
 xmltodict==0.14.2
 gunicorn
 parsel
+cn2an
+jsonpath_ng
+sqlalchemy

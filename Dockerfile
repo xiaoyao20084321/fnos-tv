@@ -15,6 +15,7 @@ ARG FNOS_URL
 ARG RUN_AND_UPDATE_WEB=false
 ENV FNOS_URL=${FNOS_URL}
 ENV RUN_AND_UPDATE_WEB=${RUN_AND_UPDATE_WEB}
+VOLUME ["/app/data"]
 
 # 复制并安装 Python 依赖
 COPY requirements.txt .
@@ -24,11 +25,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # 复制 nginx 和 supervisor 配置
-COPY nginx.conf.template /etc/nginx/nginx.conf.template
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY config/nginx.conf.template /etc/nginx/nginx.conf.template
+COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # 复制启动脚本
-COPY entrypoint.sh /entrypoint.sh
+COPY config/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 # 暴露 HTTP 端口
 EXPOSE 80

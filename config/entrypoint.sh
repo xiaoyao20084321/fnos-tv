@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# 确保日志目录存在
+mkdir -p /app/data/log
+
 # 替换 Nginx 配置中的变量
 envsubst '${FNOS_URL}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
 
