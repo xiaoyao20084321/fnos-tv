@@ -293,8 +293,18 @@ class GetDanmuBilibili(GetDanmuBase):
             _d = self.get_data_dict()
             _d.text = data[1]
             data_time = data[0].split(",")
-            _d.time = int(data_time[0])
-            _d.mode = data_time[1]
+            _mode = int(data_time[1])
+            mode = 0
+            match _mode:
+                case 1 | 2 | 3:
+                    mode = 0
+                case 4:
+                    mode = 2
+                case 5:
+                    mode = 1
+                    
+            _d.time = float(data_time[0])
+            _d.mode = mode
             _d.style['size'] = data_time[2]
             _d.color = data_time[3]
             self.data_list.append(_d)

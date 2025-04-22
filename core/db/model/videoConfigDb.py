@@ -1,0 +1,33 @@
+﻿from sqlalchemy import Column, Integer, String
+
+from core.db.model import Base
+
+
+class videoConfigList(Base):
+    # 跳过片段的数据库
+    __tablename__ = 'video_config_list'
+
+    id = Column(Integer, primary_key=True)
+    guid = Column(String)  # 剧集ID
+    startTime = Column(Integer)
+    endTime = Column(Integer)
+
+    def get_data(self):
+        return {
+            'startTime': self.startTime,
+            'endTime': self.endTime,
+        }
+
+
+class videoConfigUrl(Base):
+    # 剧集平台播放链接的数据库
+    __tablename__ = 'video_config_url'
+
+    id = Column(Integer, primary_key=True)
+    guid = Column(String)  # 剧集ID
+    url = Column(String)
+
+    def get_data(self):
+        return {
+            'url': self.url,
+        }
