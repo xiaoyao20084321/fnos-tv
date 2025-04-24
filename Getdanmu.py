@@ -313,16 +313,16 @@ class GetDanmuBilibili(GetDanmuBase):
     def main(self, url: str):
         # 番剧
         if url.find("bangumi/") != -1 and url.find("ep") != -1:
-            epid = url.split('?')[0].split('/')[-1]
+            epid = re.findall("ep(\d+)",url)[0]
             params = {
-                "ep_id": epid[2:]
+                "ep_id": epid
             }
             res = request_data("GET", url=self.api_epid_cid, params=params, impersonate="chrome110")
             res_json = res.json()
             if res_json.get("code") != 0:
                 return self.error("获取番剧信息失败")
             for episode in res_json.get("result", {}).get("episodes", []):
-                if episode.get("id", 0) == int(epid[2:]):
+                if episode.get("id", 0) == int(epid):
                     xml_data = request_data("GET", f'https://comment.bilibili.com/{episode.get("cid")}.xml',
                                             impersonate="chrome110").text
                     return self.parsel(xml_data)
