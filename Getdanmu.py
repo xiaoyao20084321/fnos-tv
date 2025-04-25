@@ -108,7 +108,6 @@ class GetDanmuBase(object):
     def parse(self):
         """
         解析返回的原始数据
-        :param _type: 数据类型，xml 或 list
         """
         pass
 
@@ -119,7 +118,7 @@ class GetDanmuBase(object):
             return RetDanMuType(json.loads(json.dumps(data, cls=DataclassJSONEncoder)),
                                 self.base_xml.format('\n'.join([self.list2xml(d) for d in data])))
         except Exception as e:
-            return self.error(f"程序出现错误:{traceback.print_exc()}")
+            return RetDanMuType([], "")
 
     def getImg(self, url):
         """
@@ -140,6 +139,11 @@ class GetDanmuBase(object):
         return s
 
     def get_episode_url(self, url: str) -> dict[str, str]:
+        """
+        根据一个链接获取所有剧集链接，返回一个字典
+        :param url: 
+        :return: 
+        """
         return {}
 
 
@@ -302,7 +306,7 @@ class GetDanmuBilibili(GetDanmuBase):
                     mode = 2
                 case 5:
                     mode = 1
-                    
+
             _d.time = float(data_time[0])
             _d.mode = mode
             _d.style['size'] = data_time[2]
@@ -313,7 +317,7 @@ class GetDanmuBilibili(GetDanmuBase):
     def main(self, url: str):
         # 番剧
         if url.find("bangumi/") != -1 and url.find("ep") != -1:
-            epid = re.findall("ep(\d+)",url)[0]
+            epid = re.findall("ep(\d+)", url)[0]
             params = {
                 "ep_id": epid
             }
@@ -631,6 +635,63 @@ class GetDanmuYouku(GetDanmuBase):
                 }
             )
         return emoji_data_list
+
+
+class GetDanmuSoHu(GetDanmuBase):
+    name = "搜狐"
+    domain = "tv.sohu.com"
+
+    def __init__(self):
+        super().__init__()
+        self.req = requests.Session(impersonate="chrome124")
+
+    def parse(self):
+        data_list = []
+        for data in tqdm(self.data_list):
+            for d in data.get("info", {}).get("comments", []):
+                _d = self.get_data_dict()
+                _d.time = d.get('v', 0)
+                _d.text = d.get('c', '')
+                data_list.append(_d)
+        return data_list
+
+    def main(self, url):
+        res = self.req.get(url)
+        vid = re.findall('vid="(.*?)";', res.text)[0]
+        aid = re.findall('playlistId="(.*?)";', res.text)[0]
+        page = 0
+        while True:
+            params = {
+                "act": "dmlist_v2",
+                "request_from": "h5_js",
+                "vid": vid,
+                "aid": aid,
+                "time_begin": page * 300,
+                "time_end": (page + 1) * 300
+            }
+            _res = self.req.get("https://api.danmu.tv.sohu.com/dmh5/dmListAll", params)
+            if 'comments' not in _res.text:
+                break
+            page += 1
+            self.data_list.append(_res.json())
+        parse_data = self.parse()
+        return parse_data
+
+    def get_episode_url(self, url):
+        _res = self.req.get(url)
+        vid = re.findall('vid="(.*?)";', _res.text)[0]
+        play_list_id = re.findall('playlistId="(.*?)";', _res.text)[0]
+        params = {
+            "playlistid": play_list_id,
+            "vid": vid
+        }
+        res = self.req.get("https://pl.hd.sohu.com/videolist", params)
+        res.encoding = res.charset_encoding
+        res_data = json.loads(res.text.encode("utf-8"))
+        url_dict = {}
+        for item in res_data.get('videos', []):
+            url_dict[item.get('order')] = item.get('pageUrl')
+        return url_dict
 
 
 def download_barrage(_url):
