@@ -28,8 +28,13 @@ class CRUDBase:
         return ret_data
 
     def add(self, **kwargs):
-        obj = self.model(**kwargs)
-        self.session.add(obj)
+        obj = self.filter(**kwargs)
+        if not obj:
+            obj = self.model(**kwargs)
+            self.session.add(obj)
+        else:
+            for key, value in kwargs.items():
+                setattr(obj[0], key, value)
         self.session.commit()
         return obj
 

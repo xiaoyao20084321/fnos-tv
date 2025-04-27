@@ -230,7 +230,7 @@ def get_video_config():
 def update_video_config():
     episode_guid = request.args.get('episode_guid')
     guid = request.args.get('guid')
-    if guid is None:
+    if guid is None and episode_guid is None:
         return {
             'code': 404,
             'msg': '未获取到guid'
