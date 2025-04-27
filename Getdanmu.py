@@ -82,43 +82,49 @@ class GetDanmuBase(object):
     name = ""
     domain = ""
 
-    def error(self, msg):
-        return {
-            "msg": msg,
-            "start": 500,
-            "data": None,
-            "name": self.name
-        }
-
-    def success(self, data):
-        return {
-            "msg": "success",
-            "start": 0,
-            "data": data,
-            "name": self.name
-        }
-
     def get_data_dict(self) -> DanMuType:
         return DanMuType()
 
-    def main(self, url) -> list[DanMuType]:
+    def request_data(self, session, method, url, status_code=None, **kwargs):
+        """
+        统一的请求函数，用于网络请求
+        :param session: 
+        :param method: 
+        :param url: 
+        :param status_code: 
+        :param kwargs: 
+        :return: 
+        """
+        try:
+            res = session.request(method, url, **kwargs)
+            return res
+        except Exception as e:
+            logger.error(e)
+            return
+
+    def get_link(self, url) -> List:
+        return []
+
+    def main(self, links: List) -> List[requests.Response]:
         """
         获取弹幕的主逻辑
         """
         pass
 
-    def parse(self):
+    def parse(self) -> list[DanMuType]:
         """
         解析返回的原始数据
         """
-        pass
+        return []
 
     def get(self, url, _type='json'):
         self.data_list = []
         try:
-            data = self.main(url)
-            return RetDanMuType(json.loads(json.dumps(data, cls=DataclassJSONEncoder)),
-                                self.base_xml.format('\n'.join([self.list2xml(d) for d in data])))
+            links = self.get_link(url)
+            self.main(links)
+            parse_data = self.parse()
+            return RetDanMuType(json.loads(json.dumps(parse_data, cls=DataclassJSONEncoder)),
+                                self.base_xml.format('\n'.join([self.list2xml(d) for d in parse_data])))
         except Exception as e:
             return RetDanMuType([], "")
 
@@ -157,33 +163,7 @@ class GetDanmuTencent(GetDanmuBase):
         self.api_danmaku_base = "https://dm.video.qq.com/barrage/base/"
         self.api_danmaku_segment = "https://dm.video.qq.com/barrage/segment/"
 
-    def parse(self):
-        data_list = []
-        for data in tqdm(self.data_list):
-            for item in data.get("barrage_list", []):
-                _d = self.get_data_dict()
-                _d.time = int(item.get("time_offset", 0)) / 1000
-                _d.text = item.get("content", "")
-                _d.other['create_time'] = item.get('create_time', "")
-                if item.get("content_style") != "":
-                    content_style = json.loads(item.get("content_style"))
-                    if content_style.get("color") != "ffffff":
-                        _d.color = int(content_style.get("color", "ffffff"), 16)
-                data_list.append(_d)
-        return data_list
-    
-    def fetch_segment(self, vid, segment_index):
-        """获取单个分段的弹幕"""
-        try:
-            return request_data("GET", 
-                               urljoin(self.api_danmaku_segment,
-                                      vid + "/" + segment_index.get("segment_name", "/"))).json()
-        except Exception as e:
-            print(f"获取分段弹幕失败: {e}")
-            return {"barrage_list": []}
-
-    def main(self, url):
-        self.data_list = []
+    def get_link(self, url) -> List[str]:
         res = request_data("GET", url)
         res.encoding = res.apparent_encoding
         sel = parsel.Selector(res.text)
@@ -196,24 +176,44 @@ class GetDanmuTencent(GetDanmuBase):
             if vid:
                 vid = vid.group(1)
         if not vid:
-            return self.error("解析vid失败，请检查链接是否正确")
+            logger.error("解析vid失败，请检查链接是否正确")
+            return []
         res = request_data("GET", urljoin(self.api_danmaku_base, vid))
         if res.status_code != 200:
-            return self.error("获取弹幕详情失败")
-
+            logger.error("获取弹幕详情失败")
+            return []
         # 使用线程池并行获取所有分段
         segment_indices = list(res.json().get("segment_index", {}).values())
-        if segment_indices:
-            print(f"腾讯视频: 开始并行获取 {len(segment_indices)} 个分段的弹幕")
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(segment_indices))) as executor:
-                fetch_func = partial(self.fetch_segment, vid)
-                results = list(tqdm(executor.map(fetch_func, segment_indices), 
-                                   total=len(segment_indices), 
-                                   desc="腾讯视频弹幕获取"))
-                self.data_list.extend(results)
-            
-        parse_data = self.parse()
-        return parse_data
+        links = [urljoin(self.api_danmaku_segment,
+                         vid + "/" + item.get("segment_name", "/")) for item in segment_indices]
+        return links
+
+    def parse(self):
+        data_list = []
+        for _data in tqdm(self.data_list):
+            data = _data.json()
+            for item in data.get("barrage_list", []):
+                _d = self.get_data_dict()
+                _d.time = int(item.get("time_offset", 0)) / 1000
+                _d.text = item.get("content", "")
+                _d.other['create_time'] = item.get('create_time', "")
+                if item.get("content_style") != "":
+                    content_style = json.loads(item.get("content_style"))
+                    if content_style.get("color") != "ffffff":
+                        _d.color = int(content_style.get("color", "ffffff"), 16)
+                data_list.append(_d)
+        return data_list
+
+    def main(self, links):
+        self.data_list = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(links))) as executor:
+            fun = partial(self.request_data, requests, "GET")
+            results = list(tqdm(executor.map(fun, links),
+                                total=len(links),
+                                desc="腾讯视频弹幕获取"))
+            self.data_list.extend(results)
+
+        return self.data_list
 
     def getImg(self, url):
         vid = re.search("/([a-zA-Z0-9]+)\.html", url)
@@ -266,7 +266,8 @@ class GetDanmuTencent(GetDanmuBase):
                 vid = vid.group(1)
         cid = re.findall('"cid":"(.*?)"', res.text)[0]
         if not vid:
-            return self.error("解析vid失败，请检查链接是否正确")
+            logger.error("解析vid失败，请检查链接是否正确")
+            return {}
 
         url = 'https://pbaccess.video.qq.com/trpc.universal_backend_service.page_server_rpc.PageServer/GetPageData'
         data = {
@@ -308,41 +309,7 @@ class GetDanmuBilibili(GetDanmuBase):
         self.api_video_info = "https://api.bilibili.com/x/web-interface/view"
         self.api_epid_cid = "https://api.bilibili.com/pgc/view/web/season"
 
-    def parsel(self, xml_data):
-        data_list = re.findall('<d p="(.*?)">(.*?)<\/d>', xml_data)
-        for data in tqdm(data_list):
-            _d = self.get_data_dict()
-            _d.text = data[1]
-            data_time = data[0].split(",")
-            _mode = int(data_time[1])
-            mode = 0
-            match _mode:
-                case 1 | 2 | 3:
-                    mode = 0
-                case 4:
-                    mode = 2
-                case 5:
-                    mode = 1
-
-            _d.time = float(data_time[0])
-            _d.mode = mode
-            _d.style['size'] = data_time[2]
-            _d.color = data_time[3]
-            self.data_list.append(_d)
-        return self.data_list
-    
-    def fetch_episode_danmu(self, cid):
-        """获取单个剧集的弹幕"""
-        try:
-            xml_data = request_data("GET", f'https://comment.bilibili.com/{cid}.xml',
-                                   impersonate="chrome110").text
-            return xml_data
-        except Exception as e:
-            print(f"获取B站弹幕失败: {e}")
-            return None
-
-    def main(self, url: str):
-        # 番剧
+    def get_link(self, url) -> List[str]:
         if url.find("bangumi/") != -1 and url.find("ep") != -1:
             epid = re.findall("ep(\d+)", url)[0]
             params = {
@@ -351,119 +318,121 @@ class GetDanmuBilibili(GetDanmuBase):
             res = request_data("GET", url=self.api_epid_cid, params=params, impersonate="chrome110")
             res_json = res.json()
             if res_json.get("code") != 0:
-                return self.error("获取番剧信息失败")
-                
+                logger.error("获取番剧信息失败")
+                return []
+
             target_episode = None
             for episode in res_json.get("result", {}).get("episodes", []):
                 if episode.get("id", 0) == int(epid):
                     target_episode = episode
                     break
-            
             if target_episode:
-                # 单独获取当前剧集的弹幕
-                xml_data = self.fetch_episode_danmu(target_episode.get("cid"))
-                if xml_data:
-                    return self.parsel(xml_data)
-                    
-            # 如果需要获取整个季度的所有弹幕，可以用下面的代码
-            # 注意：除非明确要求，否则不建议获取所有剧集弹幕，因为数据量可能很大
-            # episodes = res_json.get("result", {}).get("episodes", [])
-            # if episodes:
-            #     print(f"B站: 开始并行获取 {len(episodes)} 个剧集的弹幕")
-            #     cids = [episode.get("cid") for episode in episodes]
-            #     with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(cids))) as executor:
-            #         results = list(tqdm(executor.map(self.fetch_episode_danmu, cids), 
-            #                           total=len(cids), 
-            #                           desc="B站弹幕获取"))
-            #         # 处理所有有效结果
-            #         for xml_data in [r for r in results if r is not None]:
-            #             self.parsel(xml_data)
-            #     return self.data_list
-        
+                return [f'https://comment.bilibili.com/{target_episode.get("cid")}.xml']
         return []
+
+    def parse(self):
+        data_list = []
+        for item in self.data_list:
+            xml_data = item.text
+            datas = re.findall('<d p="(.*?)">(.*?)<\/d>', xml_data)
+            for data in tqdm(datas):
+                _d = self.get_data_dict()
+                _d.text = data[1]
+                data_time = data[0].split(",")
+                _mode = int(data_time[1])
+                mode = 0
+                match _mode:
+                    case 1 | 2 | 3:
+                        mode = 0
+                    case 4:
+                        mode = 2
+                    case 5:
+                        mode = 1
+
+                _d.time = float(data_time[0])
+                _d.mode = mode
+                _d.style['size'] = data_time[2]
+                _d.color = data_time[3]
+                data_list.append(_d)
+        return data_list
+
+    def main(self, links: List[str]):
+        self.data_list = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(links))) as executor:
+            fun = partial(self.request_data, requests, "GET", impersonate="chrome110")
+            results = list(tqdm(executor.map(fun, links),
+                                total=len(links),
+                                desc="哔哩哔哩弹幕获取"))
+            self.data_list.extend(results)
+
+        return self.data_list
 
 
 class GetDanmuIqiyi(GetDanmuBase):
     name = "爱奇艺"
     domain = "iqiyi.com"
 
-    def parse(self):
-        data_list = []
-        for data in tqdm(self.data_list):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._req = requests.Session(impersonate="chrome124")
+
+    def request_data_by_iqiyi(self, method, url, *args, **kwargs):
+        res = self.request_data(self._req, method, url=url, *args, **kwargs)
+        if res.status_code == 200:
             # 解压缩数据
-            decompressed_data = zlib.decompress(data)
+            decompressed_data = zlib.decompress(res.content)
             data = decompressed_data.decode('utf-8')
+            data_list = []
             for d in re.findall('<bulletInfo>.*?</bulletInfo>', data, re.S):
                 d = d.replace('&#', '')
-                try:
-                    d_dict = xmltodict.parse(d).get("bulletInfo")
-                    _d = self.get_data_dict()
-                    _d.time = int(d_dict.get("showTime"))
-                    _d.text = d_dict.get("content")
-                    _d.color = int(d_dict.get("color"), 16)
-                    _d.style["size"] = int(d_dict.get("font"))
-                    data_list.append(_d)
-                except Exception as e:
-                    logger.error(e)
-                    pass
-        return data_list
-    
-    def fetch_bullet(self, url):
-        """获取单个弹幕分段"""
-        try:
-            r = request_data("GET", url=url, headers={'Content-Type': 'application/octet-stream'})
-            if r.status_code == 404:
-                return None
-            return r.content
-        except Exception as e:
-            print(f"获取爱奇艺弹幕分段失败: {e}")
-            return None
+                d_dict = xmltodict.parse(d).get("bulletInfo")
+                data_list.append(d_dict)
+            return data_list
+        return
 
-    def main(self, url):
-        _req = requests.Session(impersonate="chrome124")
+    def get_link(self, url) -> List[str]:
+        _req = self._req
         res = _req.request("GET", url,
                            headers={"Accept-Encoding": "gzip,deflate,compress"}, impersonate="chrome124")
         res.encoding = "UTF-8"
         js_url = re.findall(r'<script src="(.*?)" referrerpolicy="no-referrer-when-downgrade">', res.text)[0]
         res = _req.request('GET', f'https:{js_url}', headers={'referer': url})
         tv_id = re.findall('"tvId":([0-9]+)', res.text)[0]
-        
-        # 构建所有分段URL并检查
-        bullet_urls = []
-        i = 1
-        test_url = f"https://cmts.iqiyi.com/bullet/{tv_id[-4:-2]}/{tv_id[-2:]}/{tv_id}_300_{i}.z"
-        test_res = request_data("GET", url=test_url, headers={'Content-Type': 'application/octet-stream'})
-        
-        # 只测试前两次，如果都成功则直接使用多线程批量获取
-        if test_res.status_code != 404:
-            # 预估最大分段数
-            max_segments = 20  # 默认假设20个分段，可以根据实际情况调整
-            for i in range(1, max_segments + 1):
-                bullet_urls.append(f"https://cmts.iqiyi.com/bullet/{tv_id[-4:-2]}/{tv_id[-2:]}/{tv_id}_300_{i}.z")
-                
-            # 使用线程池并行获取所有分段
-            print(f"爱奇艺: 开始并行获取 {len(bullet_urls)} 个分段的弹幕")
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(bullet_urls))) as executor:
-                results = list(tqdm(executor.map(self.fetch_bullet, bullet_urls), 
-                                   total=len(bullet_urls), 
-                                   desc="爱奇艺弹幕获取"))
-                # 过滤掉失败的结果
+        base_url = f"https://cmts.iqiyi.com/bullet/{tv_id[-4:-2]}/{tv_id[-2:]}/{tv_id}_300_%s.z"
+        return [base_url]
+
+    def parse(self):
+        data_list = []
+        for data in tqdm(self.data_list):
+            for item in data:
+                try:
+                    _d = self.get_data_dict()
+                    _d.time = int(item.get("showTime"))
+                    _d.text = item.get("content")
+                    _d.color = int(item.get("color"), 16)
+                    _d.style["size"] = int(item.get("font"))
+                    data_list.append(_d)
+                except Exception as e:
+                    logger.error(e)
+                    pass
+        return data_list
+
+    def main(self, links: List[str]):
+        page = 1
+        link = links[0]
+        while True:
+            # 一次获取20页的数据
+            url_list = [link % i for i in range(page, page + 20)]
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(url_list))) as executor:
+                fun = partial(self.request_data_by_iqiyi, "GET", headers={'Content-Type': 'application/octet-stream'})
+                results = list(tqdm(executor.map(fun, url_list),
+                                    total=len(url_list),
+                                    desc=f"爱奇艺弹幕获取-{page}-{page + 19}"))
                 self.data_list.extend([r for r in results if r is not None])
-
-        # 如果多线程获取失败或没有获取到足够的数据，回退到单线程模式
-        if not self.data_list:
-            print("多线程获取失败，回退到单线程模式")
-            i = 1
-            while True:
-                url = f"https://cmts.iqiyi.com/bullet/{tv_id[-4:-2]}/{tv_id[-2:]}/{tv_id}_300_{i}.z"
-                r = request_data("GET", url=url, headers={'Content-Type': 'application/octet-stream'})
-                if r.status_code == 404: 
+                if len([r for r in results if r is None]) > 0:
                     break
-                self.data_list.append(r.content)
-                i += 1
-
-        parse_data = self.parse()
-        return parse_data
+                page += 20
+        return self.data_list
 
     def getImg(self, url):
         _req = requests.Session(impersonate="chrome124")
@@ -514,31 +483,12 @@ class GetDanmuMgtv(GetDanmuBase):
     name = "芒果TV"
     domain = "mgtv.com"
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.api_video_info = "https://pcweb.api.mgtv.com/video/info"
         self.api_danmaku = "https://galaxy.bz.mgtv.com/rdbarrage"
 
-    def parse(self):
-        data_list = []
-        for data in tqdm(self.data_list):
-            if data.get("data", {}).get("items", []) is None:
-                continue
-            for d in data.get("data", {}).get("items", []):
-                _d = self.get_data_dict()
-                _d.time = d.get('time', 0) / 1000
-                _d.text = d.get('content', '')
-                data_list.append(_d)
-        return data_list
-    
-    def fetch_danmaku(self, params):
-        """获取单个时间点的弹幕"""
-        try:
-            return request_data("GET", self.api_danmaku, params=params).json()
-        except Exception as e:
-            print(f"获取芒果TV弹幕失败: {e}")
-            return {"data": {"items": []}}
-
-    def main(self, url):
+    def get_link(self, url) -> List[str]:
         _u = url.split(".")[-2].split("/")
         cid = _u[-2]
         vid = _u[-1]
@@ -549,27 +499,31 @@ class GetDanmuMgtv(GetDanmuBase):
         res = request_data("GET", url=self.api_video_info, params=params)
         _time = res.json().get("data", {}).get("info", {}).get("time")
         end_time = self.time_to_second(_time.split(":")) * 1000
-        
-        # 创建所有时间点的参数列表
-        all_params = []
-        for _t in range(0, end_time, 60 * 1000):
-            all_params.append({
-                'vid': vid,
-                "cid": cid,
-                "time": _t
-            })
-        
-        # 使用线程池并行获取所有时间点的弹幕
-        if all_params:
-            print(f"芒果TV: 开始并行获取 {len(all_params)} 个时间点的弹幕")
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(all_params))) as executor:
-                results = list(tqdm(executor.map(self.fetch_danmaku, all_params), 
-                                    total=len(all_params), 
-                                    desc="芒果TV弹幕获取"))
-                self.data_list.extend(results)
-        
-        parse_data = self.parse()
-        return parse_data
+
+        return [f'{self.api_danmaku}?vid={vid}&cid={cid}&time={item}' for item in range(0, end_time, 60 * 1000)]
+
+    def parse(self):
+        data_list = []
+        for _data in tqdm(self.data_list):
+            data = _data.json()
+            if data.get("data", {}).get("items", []) is None:
+                continue
+            for d in data.get("data", {}).get("items", []):
+                _d = self.get_data_dict()
+                _d.time = d.get('time', 0) / 1000
+                _d.text = d.get('content', '')
+                data_list.append(_d)
+        return data_list
+
+    def main(self, links: List[str]):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(links))) as executor:
+            fun = partial(self.request_data, requests, "GET")
+            results = list(tqdm(executor.map(fun, links),
+                                total=len(links),
+                                desc="芒果TV弹幕获取"))
+            self.data_list.extend(results)
+
+        return self.data_list
 
 
 class GetDanmuYouku(GetDanmuBase):
@@ -585,31 +539,12 @@ class GetDanmuYouku(GetDanmuBase):
         self.get_cna()
         self.get_tk_enc()
 
-    @retry(stop_max_attempt_number=5, wait_random_min=1000, wait_random_max=2000)
-    def request_data(self, method, url, status_code=None, **kwargs):
-        """
-        发送请求
-        :param method: 请求方式
-        :param url: 请求URL
-        :param status_code: 成功的状态码
-        :param kwargs:
-        :return:
-        """
-        res = self.req.request(method, url, **kwargs)
-        # res.encoding = res.apparent_encoding
-        if status_code:
-            if res.status_code == status_code:
-                return res
-            else:
-                return
-        return res
-
     def get_cna(self):
         url = "https://log.mmstat.com/eg.js"
-        res = self.request_data("GET", url, headers=self.headers)
+        res = self.request_data(self.req, "GET", url, headers=self.headers)
 
     def get_tk_enc(self):
-        res = self.request_data("GET",
+        res = self.request_data(self.req, "GET",
                                 "https://acs.youku.com/h5/mtop.com.youku.aplatform.weakget/1.0/?jsv=2.5.1&appKey=24679788",
                                 headers=self.headers)
         if '_m_h5_tk' in res.cookies.keys() and '_m_h5_tk_enc' in res.cookies.keys():
@@ -624,7 +559,7 @@ class GetDanmuYouku(GetDanmuBase):
             'package': 'com.huawei.hwvplayer.youku',
             'ext': 'show',
         }
-        res = self.request_data("GET", url, params=params, headers=self.headers)
+        res = self.request_data(self.req, "GET", url, params=params, headers=self.headers)
         return res.json().get('duration')
 
     def get_msg_sign(self, msg_base64):
@@ -637,6 +572,35 @@ class GetDanmuYouku(GetDanmuBase):
         text = '&'.join([token, t, appkey, data])
         md5_hash = hashlib.md5(text.encode())
         return md5_hash.hexdigest()
+
+    def get_link(self, url) -> List:
+        if 'vid=' in url:
+            # 从URL参数中提取vid
+            vid_match = re.search(r'vid=([^&=]+)', url)
+            if vid_match:
+                # 处理可能的URL编码
+                video_id = vid_match.group(1).replace('%3D', '=').replace('=', '')
+                print(f"从URL参数提取vid: {video_id}")
+            else:
+                print("无法从URL参数中提取vid")
+                return []
+        else:
+            # 原来的提取逻辑
+            video_id = url.split('?')[0].split('/')[-1].replace("id_", '').split('.html')[0]
+        max_mat = self.get_vinfos_by_video_id(video_id)
+        try:
+            segments = int(float(max_mat) / 60) + 1
+        except:
+            segments = 10  # 默认10个分段
+
+        # 创建所有时间段的参数列表
+        all_params = []
+        for mat in range(segments):
+            all_params.append({
+                'vid': video_id,
+                'mat': mat
+            })
+        return all_params
 
     def parse(self):
         data_list = []
@@ -658,7 +622,7 @@ class GetDanmuYouku(GetDanmuBase):
         try:
             video_id = params.get('vid')
             mat = params.get('mat')
-            
+
             url = "https://acs.youku.com/h5/mopen.youku.danmu.list/1.0/"
             msg = {
                 'ctime': int(time.time() * 1000),
@@ -672,11 +636,11 @@ class GetDanmuYouku(GetDanmuBase):
                 'type': 1,
                 'vid': video_id
             }
-            
+
             msg['msg'] = base64.b64encode(json.dumps(msg).replace(' ', '').encode('utf-8')).decode('utf-8')
             msg['sign'] = self.get_msg_sign(msg['msg'])
             t = int(time.time() * 1000)
-            
+
             # 检查token是否存在
             token = self.req.cookies.get('_m_h5_tk')
             if not token:
@@ -686,7 +650,7 @@ class GetDanmuYouku(GetDanmuBase):
                 if not token:
                     print("无法获取优酷token")
                     return None
-                
+
             params = {
                 'jsv': '2.5.6',
                 'appKey': '24679788',
@@ -700,14 +664,14 @@ class GetDanmuYouku(GetDanmuBase):
                 'timeout': '20000',
                 'jsonpIncPrefix': 'utility'
             }
-            
+
             headers = self.headers.copy()
             headers['Content-Type'] = 'application/x-www-form-urlencoded'
             headers['Referer'] = 'https://v.youku.com'
-            
-            res = self.request_data("POST", url, data={"data": json.dumps(msg).replace(' ', '')}, 
-                                   headers=headers, params=params)
-            
+
+            res = self.request_data(self.req, "POST", url, data={"data": json.dumps(msg).replace(' ', '')},
+                                    headers=headers, params=params)
+
             if res and hasattr(res, 'json'):
                 return res.json()
             return None
@@ -715,71 +679,35 @@ class GetDanmuYouku(GetDanmuBase):
             print(f"获取优酷弹幕分段失败（mat={mat}）: {e}")
             return None
 
-    def main(self, url):
-        print(f"开始获取优酷视频弹幕: {url}")
-        
-        # 处理复杂的优酷URL格式
-        if 'vid=' in url:
-            # 从URL参数中提取vid
-            vid_match = re.search(r'vid=([^&=]+)', url)
-            if vid_match:
-                # 处理可能的URL编码
-                video_id = vid_match.group(1).replace('%3D', '=').replace('=', '')
-                print(f"从URL参数提取vid: {video_id}")
-            else:
-                print("无法从URL参数中提取vid")
-                return []
-        else:
-            # 原来的提取逻辑
-            video_id = url.split('?')[0].split('/')[-1].replace("id_", '').split('.html')[0]
-            print(f"从URL路径提取vid: {video_id}")
-        
-        max_mat = self.get_vinfos_by_video_id(video_id)
-        
-        try:
-            segments = int(float(max_mat) / 60) + 1
-        except:
-            segments = 10  # 默认10个分段
-        
-        print(f"优酷视频总时长: {max_mat}秒，分为{segments}个分段")
-        
-        # 创建所有时间段的参数列表
-        all_params = []
-        for mat in range(segments):
-            all_params.append({
-                'vid': video_id,
-                'mat': mat
-            })
-        
+    def main(self, all_params):
+
         # 使用线程池并行获取所有时间段的弹幕
         self.data_list = []
         if all_params:
             print(f"优酷: 开始并行获取 {len(all_params)} 个时间段的弹幕")
             with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(all_params))) as executor:
-                results = list(tqdm(executor.map(self.fetch_segment, all_params), 
-                                   total=len(all_params), 
-                                   desc="优酷弹幕获取"))
+                results = list(tqdm(executor.map(self.fetch_segment, all_params),
+                                    total=len(all_params),
+                                    desc="优酷弹幕获取"))
                 # 过滤掉失败的结果
                 valid_results = [r for r in results if r is not None]
                 self.data_list.extend(valid_results)
-        
+
         # 如果没有获取到任何数据，回退到传统方法
         if not self.data_list:
             print("优酷多线程获取失败，回退到单线程模式")
-            for mat in range(segments):
+            for item in range(all_params):
                 try:
                     result = self.fetch_segment({
-                        'vid': video_id,
-                        'mat': mat
+                        'vid': item.get('vid'),
+                        'mat': item.get('mat')
                     })
                     if result:
                         self.data_list.append(result)
                 except Exception as e:
-                    print(f"单线程获取优酷弹幕失败（mat={mat}）: {e}")
-        
-        parse_data = self.parse()
-        print(f"获取到优酷弹幕数量: {len(parse_data)}")
-        return parse_data
+                    print(f"单线程获取优酷弹幕失败（mat={item.get('mat')}）: {e}")
+
+        return self.data_list
 
     def getImg(self, url):
         api_url = 'https://acs.youku.com/h5/mtop.youku.danmu.common.profile/1.0'
@@ -812,7 +740,8 @@ class GetDanmuYouku(GetDanmuBase):
         headers = self.headers.copy()
         headers['Content-Type'] = 'application/x-www-form-urlencoded'
         headers['Referer'] = 'https://v.youku.com'
-        res = self.request_data("POST", api_url, data={"data": json.dumps(msg).replace(' ', '')}, headers=headers,
+        res = self.request_data(self.req, "POST", api_url, data={"data": json.dumps(msg).replace(' ', '')},
+                                headers=headers,
                                 params=params)
         emoji_infos = res.json().get('data', {}).get('data', {}).get('danmuEmojiEnter', {}).get('danmuDynamicEmojiVO',
                                                                                                 [])
@@ -835,79 +764,54 @@ class GetDanmuSoHu(GetDanmuBase):
         super().__init__()
         self.req = requests.Session(impersonate="chrome124")
 
+    def get_link(self, url) -> List:
+        res = self.req.get(url)
+        vid = re.findall('vid="(.*?)";', res.text)[0]
+        aid = re.findall('playlistId="(.*?)";', res.text)[0]
+        base_url = f'https://api.danmu.tv.sohu.com/dmh5/dmListAll?act=dmlist_v2&request_from=h5_js&vid={vid}&aid={aid}&time_begin=%s&time_end=%s'
+        return [base_url]
+
     def parse(self):
         data_list = []
-        for data in tqdm(self.data_list):
+        for _data in tqdm(self.data_list):
+            data = _data.json()
             for d in data.get("info", {}).get("comments", []):
                 _d = self.get_data_dict()
                 _d.time = d.get('v', 0)
                 _d.text = d.get('c', '')
                 data_list.append(_d)
         return data_list
-    
-    def fetch_danmu_page(self, params):
-        """获取单个时间段的弹幕"""
-        try:
-            response = self.req.get("https://api.danmu.tv.sohu.com/dmh5/dmListAll", params=params)
-            if 'comments' not in response.text:
-                return None
-            return response.json()
-        except Exception as e:
-            print(f"获取搜狐弹幕失败: {e}")
-            return None
 
-    def main(self, url):
-        res = self.req.get(url)
-        vid = re.findall('vid="(.*?)";', res.text)[0]
-        aid = re.findall('playlistId="(.*?)";', res.text)[0]
-
-        # 创建所有时间段的参数列表        
-        # 预估视频时长为2小时，每5分钟一个段，共24个段
-        estimated_pages = 24
-        all_params = []
-        
-        for page in range(estimated_pages):
-            all_params.append({
-                "act": "dmlist_v2",
-                "request_from": "h5_js",
-                "vid": vid,
-                "aid": aid,
-                "time_begin": page * 300,
-                "time_end": (page + 1) * 300
-            })
-        
-        # 使用线程池并行获取所有时间段的弹幕
-        if all_params:
-            print(f"搜狐: 开始并行获取最多 {len(all_params)} 个时间段的弹幕")
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(all_params))) as executor:
-                results = list(tqdm(executor.map(self.fetch_danmu_page, all_params), 
-                                    total=len(all_params), 
+    def main(self, links):
+        self.data_list = []
+        page = 0
+        link = links[0]
+        while True:
+            url_list = [link % (i * 300, (i + 1) * 300) for i in range(page, page + 20)]
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(url_list))) as executor:
+                fun = partial(self.request_data,self.req, "GET")
+                results = list(tqdm(executor.map(fun, url_list),
+                                    total=len(url_list),
                                     desc="搜狐弹幕获取"))
                 # 过滤掉失败和空结果
-                valid_results = [r for r in results if r is not None]
+                valid_results = [r for r in results if 'comments' in r.text]
                 self.data_list.extend(valid_results)
-        
+                if len([r for r in results if 'comments' not in r.text]) > 0:
+                    break
+                page += 20
+
         # 如果没有获取到任何数据，回退到传统方法
         if not self.data_list:
             print("多线程获取失败，回退到单线程模式")
             page = 0
             while True:
-                params = {
-                    "act": "dmlist_v2",
-                    "request_from": "h5_js",
-                    "vid": vid,
-                    "aid": aid,
-                    "time_begin": page * 300,
-                    "time_end": (page + 1) * 300
-                }
-                _res = self.req.get("https://api.danmu.tv.sohu.com/dmh5/dmListAll", params)
+                _res = self.req.get(link % (page * 300, (page + 1) * 300))
                 if 'comments' not in _res.text:
                     break
                 page += 1
                 self.data_list.append(_res.json())
-            
-        parse_data = self.parse()
-        return parse_data
+
+        return self.data_list
 
     def get_episode_url(self, url):
         _res = self.req.get(url)
@@ -937,13 +841,8 @@ def download_barrage(_url):
 
 if __name__ == '__main__':
     print(GetDanmuBase.__subclasses__())
-    danmu = GetDanmuIqiyi()
+    danmu = GetDanmuSoHu()
     a = danmu.get(
-        "https://www.iqiyi.com/v_xmk754ar94.html",
+        "https://tv.sohu.com/v/MjAyNTA0MTEvbjYyMDA2MjgxOC5zaHRtbA==.html",
     )
     print()
-    # danmu = GetDanmuMgtv()
-    # a = danmu.get(
-    #     "https://www.mgtv.com/b/594763/20422016.html?fpa=1217&fpos=&lastp=ch_home",
-    #     _type="xml")
-    # print()
