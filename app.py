@@ -39,9 +39,8 @@ def main():  # put application's code here
         title = request.args.get('title')
         season_number = request.args.get('season_number')
         season = True if request.args.get('season') == 'true' else False
-        url = request.query_string.decode('utf-8')
-        if url.startswith('url='):
-            url = url[4:]  # 去除'url='前缀
+        url = request.args.get('url')
+        guid = request.args.get('guid')
     except Exception as e:
         return {
             "code": -1,
@@ -54,9 +53,15 @@ def main():  # put application's code here
     
     if episode_number:
         episode_number = int(episode_number)
-    
     url_dict = {}
-    
+    if guid is not None and episode_number:
+        _episode_number = str(episode_number)
+        url_dict = {
+            _episode_number: []
+        }
+        db = CRUDBase(videoConfigUrl)
+        for item in db.filter(guid=guid):
+            url_dict[_episode_number].append(item.url)
     if len(url_dict.keys()) == 0:
         if season_number != '1' or douban_id == 'undefined':
             douban_data = douban_select(title, season_number, season)
