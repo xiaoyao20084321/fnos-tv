@@ -54,7 +54,15 @@ def get_platform_link(douban_id):
 
 
 def douban_select(name: str, tv_num: str, season: bool):
-    tv_num = cn2an.an2cn(int(tv_num))
+    if tv_num is None:
+        tv_num = "一"
+    else:
+        try:
+            tv_num = cn2an.an2cn(int(tv_num))
+        except (ValueError, TypeError):
+            # 如果转换失败，保持原样
+            pass
+    
     url = "https://frodo.douban.com/api/v2/search/weixin"
 
     params = {

@@ -1,4 +1,6 @@
 import logging
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from flask import Flask, request
@@ -18,6 +20,17 @@ app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
 
 
+def fetch_danmu(url, episode_key):
+    """获取单个URL的弹幕数据"""
+    try:
+        print(f"获取弹幕: {url} (集数: {episode_key})")
+        danmu_data = download_barrage(url)
+        return {"key": episode_key, "data": danmu_data}
+    except Exception as e:
+        app.logger.error(f"获取弹幕失败 {url}: {str(e)}")
+        return {"key": episode_key, "data": None}
+
+
 @app.route('/danmu/get')
 def main():  # put application's code here
     try:
@@ -26,28 +39,24 @@ def main():  # put application's code here
         title = request.args.get('title')
         season_number = request.args.get('season_number')
         season = True if request.args.get('season') == 'true' else False
-        url = request.args.get('url')
-        guid = request.args.get('guid')
+        url = request.query_string.decode('utf-8')
+        if url.startswith('url='):
+            url = url[4:]  # 去除'url='前缀
     except Exception as e:
         return {
             "code": -1,
             "msg": '解析参数失败'
         }
+    
     if url is not None:
         danmu_data: RetDanMuType = download_barrage(url)
         return danmu_data.list
+    
     if episode_number:
         episode_number = int(episode_number)
+    
     url_dict = {}
-    if guid is not None and episode_number:
-        _episode_number = str(episode_number)
-        url_dict = {
-            _episode_number: []
-        }
-        db = CRUDBase(videoConfigUrl)
-        for item in db.filter(guid=guid):
-            url_dict[_episode_number].append(item.url)
-    all_danmu_data = {}
+    
     if len(url_dict.keys()) == 0:
         if season_number != '1' or douban_id == 'undefined':
             douban_data = douban_select(title, season_number, season)
@@ -70,14 +79,42 @@ def main():  # put application's code here
             episode_number: url_dict[f'{episode_number}']
         }
 
+    all_danmu_data = {}
+    
+    # 准备任务列表
+    tasks = []
     for k, v in url_dict.items():
         for u in v:
-            danmu_data: RetDanMuType = download_barrage(u)
-            if k in all_danmu_data.keys():
-                all_danmu_data[k] += danmu_data.list
-            else:
-                all_danmu_data[k] = danmu_data.list
+            tasks.append((u, k))
+    
+    # 使用线程池并行获取所有弹幕
+    if tasks:
+        print(f"开始并行获取 {len(tasks)} 个链接的弹幕")
+        with ThreadPoolExecutor(max_workers=min(20, len(tasks))) as executor:
+            results = list(executor.map(lambda args: fetch_danmu(*args), tasks))
+            
+            # 处理结果
+            for result in results:
+                if result["data"] is not None:
+                    k = result["key"]
+                    if k in all_danmu_data.keys():
+                        all_danmu_data[k] += result["data"].list
+                    else:
+                        all_danmu_data[k] = result["data"].list
+    
     return all_danmu_data
+
+
+def fetch_emoji(url):
+    """获取单个URL的表情数据"""
+    try:
+        for c in GetDanmuBase.__subclasses__():
+            if c.domain in url:
+                return {"url": url, "data": c().getImg(url)}
+        return {"url": url, "data": []}
+    except Exception as e:
+        app.logger.error(f"获取表情失败 {url}: {str(e)}")
+        return {"url": url, "data": []}
 
 
 @app.route('/danmu/getEmoji')
@@ -85,12 +122,22 @@ def get_emoji():
     douban_id = request.args.get('douban_id')
     url_dict = get_platform_link(douban_id)
     emoji_data = {}
-    for url in url_dict['1']:
-        for c in GetDanmuBase.__subclasses__():
-            if c.domain in url:
-                data = c().getImg(url)
-                for d in data:
-                    emoji_data[d['emoji_code']] = d['emoji_url']
+    
+    # 获取所有需要处理的URL
+    urls = url_dict.get('1', [])
+    
+    # 使用线程池并行获取所有表情
+    if urls:
+        print(f"开始并行获取 {len(urls)} 个链接的表情")
+        with ThreadPoolExecutor(max_workers=min(10, len(urls))) as executor:
+            all_emoji_data = list(executor.map(fetch_emoji, urls))
+            
+            # 处理结果
+            for result in all_emoji_data:
+                if result["data"]:
+                    for d in result["data"]:
+                        emoji_data[d['emoji_code']] = d['emoji_url']
+    
     return emoji_data
 
 
