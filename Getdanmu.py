@@ -367,6 +367,20 @@ class GetDanmuBilibili(GetDanmuBase):
 
         return self.data_list
 
+    def get_episode_url(self, url):
+        url_dict = {}
+        if url.find("bangumi/") != -1 and url.find("ep") != -1:
+            epid = re.findall("ep(\d+)", url)[0]
+            params = {
+                "ep_id": epid
+            }
+            res = request_data("GET", url=self.api_epid_cid, params=params, impersonate="chrome110")
+            res_json = res.json()
+            for item in res_json.get('result', {}).get('episodes', []):
+                if item.get('section_type') == 0:
+                    url_dict[str(item.get('title'))] = item.get('share_url')
+        return url_dict
+
 
 class GetDanmuIqiyi(GetDanmuBase):
     name = "爱奇艺"
@@ -789,7 +803,7 @@ class GetDanmuSoHu(GetDanmuBase):
         while True:
             url_list = [link % (i * 300, (i + 1) * 300) for i in range(page, page + 20)]
             with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(url_list))) as executor:
-                fun = partial(self.request_data,self.req, "GET")
+                fun = partial(self.request_data, self.req, "GET")
                 results = list(tqdm(executor.map(fun, url_list),
                                     total=len(url_list),
                                     desc="搜狐弹幕获取"))
