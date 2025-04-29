@@ -65,16 +65,15 @@ def main():  # put application's code here
         if season_number != '1' or douban_id == 'undefined':
             douban_data = douban_select(title, season_number, season)
             douban_id = douban_data['target_id']
-    platform_url_list = douban_get_first_url(douban_id)
-    url_dict = {}
-    for platform_url in platform_url_list:
-        for c in GetDanmuBase.__subclasses__():
-            if c.domain in platform_url:
-                d = c().get_episode_url(platform_url)
-                for k, v in d.items():
-                    if k not in url_dict.keys():
-                        url_dict[k] = []
-                    url_dict[k].append(v)
+        platform_url_list = douban_get_first_url(douban_id)
+        for platform_url in platform_url_list:
+            for c in GetDanmuBase.__subclasses__():
+                if c.domain in platform_url:
+                    d = c().get_episode_url(platform_url)
+                    for k, v in d.items():
+                        if k not in url_dict.keys():
+                            url_dict[k] = []
+                        url_dict[k].append(v)
     if len(url_dict.keys()) == 0:
         url_dict = get_platform_link(douban_id)
 
