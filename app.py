@@ -46,58 +46,62 @@ def main():  # put application's code here
             "code": -1,
             "msg": '解析参数失败'
         }
-    
+
     if url is not None:
         danmu_data: RetDanMuType = download_barrage(url)
         return danmu_data.list
-    
+
     if episode_number:
         episode_number = int(episode_number)
     url_dict = {}
     if guid is not None and episode_number:
         _episode_number = str(episode_number)
-        url_dict = {
-            _episode_number: []
-        }
         db = CRUDBase(videoConfigUrl)
         for item in db.filter(guid=guid):
+            if _episode_number not in url_dict:
+                url_dict[_episode_number] = []
             url_dict[_episode_number].append(item.url)
     if len(url_dict.keys()) == 0:
         if season_number != '1' or douban_id == 'undefined':
             douban_data = douban_select(title, season_number, season)
-            target_id = douban_data['target_id']
-            platform_url_list = douban_get_first_url(target_id)
-            url_dict = {}
-            for platform_url in platform_url_list:
-                for c in GetDanmuBase.__subclasses__():
-                    if c.domain in platform_url:
-                        d = c().get_episode_url(platform_url)
-                        for k, v in d.items():
-                            if k not in url_dict.keys():
-                                url_dict[k] = []
-                            url_dict[k].append(v)
-        else:
-            url_dict = get_platform_link(douban_id)
+            douban_id = douban_data['target_id']
+    platform_url_list = douban_get_first_url(douban_id)
+    url_dict = {}
+    for platform_url in platform_url_list:
+        for c in GetDanmuBase.__subclasses__():
+            if c.domain in platform_url:
+                d = c().get_episode_url(platform_url)
+                for k, v in d.items():
+                    if k not in url_dict.keys():
+                        url_dict[k] = []
+                    url_dict[k].append(v)
+    if len(url_dict.keys()) == 0:
+        url_dict = get_platform_link(douban_id)
 
     if episode_number is not None:
+        if guid is not None:
+            # 如果匹配到直接保存到数据库内
+            db = CRUDBase(videoConfigUrl)
+            for item in url_dict[f'{episode_number}']:
+                db.add(guid=guid, url=item)
         url_dict = {
             episode_number: url_dict[f'{episode_number}']
         }
 
     all_danmu_data = {}
-    
+
     # 准备任务列表
     tasks = []
     for k, v in url_dict.items():
         for u in v:
             tasks.append((u, k))
-    
+
     # 使用线程池并行获取所有弹幕
     if tasks:
         print(f"开始并行获取 {len(tasks)} 个链接的弹幕")
         with ThreadPoolExecutor(max_workers=min(20, len(tasks))) as executor:
             results = list(executor.map(lambda args: fetch_danmu(*args), tasks))
-            
+
             # 处理结果
             for result in results:
                 if result["data"] is not None:
@@ -106,7 +110,10 @@ def main():  # put application's code here
                         all_danmu_data[k] += result["data"].list
                     else:
                         all_danmu_data[k] = result["data"].list
-    
+    # 对数据进行排序
+    for key, value in all_danmu_data.items():
+        value.sort(key=lambda x: x.get('time'))
+
     return all_danmu_data
 
 
@@ -127,22 +134,22 @@ def get_emoji():
     douban_id = request.args.get('douban_id')
     url_dict = get_platform_link(douban_id)
     emoji_data = {}
-    
+
     # 获取所有需要处理的URL
     urls = url_dict.get('1', [])
-    
+
     # 使用线程池并行获取所有表情
     if urls:
         print(f"开始并行获取 {len(urls)} 个链接的表情")
         with ThreadPoolExecutor(max_workers=min(10, len(urls))) as executor:
             all_emoji_data = list(executor.map(fetch_emoji, urls))
-            
+
             # 处理结果
             for result in all_emoji_data:
                 if result["data"]:
                     for d in result["data"]:
                         emoji_data[d['emoji_code']] = d['emoji_url']
-    
+
     return emoji_data
 
 
