@@ -46,9 +46,9 @@ def get_platform_link(douban_id):
     url_dict = {}
     for url in urls:
         if url[1] in url_dict.keys():
-            url_dict[url[1]].append(parse.unquote(url[0]))
+            url_dict[str(url[1])].append(parse.unquote(url[0]))
         else:
-            url_dict[url[1]] = [parse.unquote(url[0])]
+            url_dict[str(url[1])] = [parse.unquote(url[0])]
 
     return url_dict
 

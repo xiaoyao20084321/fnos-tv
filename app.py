@@ -72,12 +72,12 @@ def main():  # put application's code here
                     d = c().get_episode_url(platform_url)
                     for k, v in d.items():
                         if k not in url_dict.keys():
-                            url_dict[k] = []
-                        url_dict[k].append(v)
+                            url_dict[str(k)] = []
+                        url_dict[str(k)].append(v)
     if len(url_dict.keys()) == 0:
         url_dict = get_platform_link(douban_id)
 
-    if episode_number is not None and episode_number in url_dict:
+    if episode_number is not None and str(episode_number) in url_dict:
         if guid is not None:
             # 如果匹配到直接保存到数据库内
             db = CRUDBase(videoConfigUrl)
