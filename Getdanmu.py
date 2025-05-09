@@ -485,10 +485,10 @@ class GetDanmuIqiyi(GetDanmuBase):
         url_dict = {}
         for result_obj in result_objs:
             d = result_obj.get('data', {}).get('data', [{}])[0].get('videos', {}).get('feature_paged', {})
-
-            for item in d[list(d.keys())[0]]:
-                if item.get('page_url'):
-                    url_dict[f"{item.get('album_order')}"] = item.get('page_url')
+            for k in list(d.keys()):
+                for item in d[k]:
+                    if item.get('page_url'):
+                        url_dict[f"{item.get('album_order')}"] = item.get('page_url')
 
         return url_dict
 
