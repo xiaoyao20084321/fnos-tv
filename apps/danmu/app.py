@@ -65,7 +65,8 @@ def get_url_dict(douban_id, title, season_number, episode_number, season, guid):
                 url_dict[_episode_number] = []
             url_dict[_episode_number].append(item.url)
     if len(url_dict.keys()) == 0:
-        if season_number != '1' or douban_id == 'undefined' or douban_id == "":
+        if douban_id is None and (title is not None) and season_number is not None or (
+                douban_id and season_number and season_number != '1'):  # 没有豆瓣ID，需要程序匹配
             douban_data = douban_select(title, season_number, season)
             douban_id = douban_data['target_id']
         platform_url_list = douban_get_first_url(douban_id)
