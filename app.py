@@ -1,4 +1,5 @@
 import logging
+import os
 
 from flask import Flask
 
@@ -15,9 +16,11 @@ app.register_blueprint(danmu, url_prefix='/danmu')
 app.register_blueprint(fnos_app, url_prefix='/fnos')
 app.register_blueprint(api_app, url_prefix='/api')
 
+if not os.path.exists('./data/log'):
+    os.makedirs('./data/log')
+
 # 创建表
 Base.metadata.create_all(engine)
-import os
 
 if __name__ == '__main__':
     debug_mode = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
