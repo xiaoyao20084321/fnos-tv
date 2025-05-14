@@ -2,7 +2,7 @@
 
 # 说明
 
-接口文档(完善中...)：[https://apifox.com/apidoc/shared-5ee9b9dd-7f2c-48aa-b0d6-3a81cff66329](接口文档：https://apifox.com/apidoc/shared-5ee9b9dd-7f2c-48aa-b0d6-3a81cff66329)
+接口文档(完善中...)：[https://apifox.com/apidoc/shared-5ee9b9dd-7f2c-48aa-b0d6-3a81cff66329](https://apifox.com/apidoc/shared-5ee9b9dd-7f2c-48aa-b0d6-3a81cff66329)
 
 所有的接口都是基于飞牛TV官方的接口，没有做其他的操作
 
