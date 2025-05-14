@@ -17,5 +17,8 @@ app.register_blueprint(api_app, url_prefix='/api')
 
 # 创建表
 Base.metadata.create_all(engine)
+import os
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True)
+    debug_mode = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+    app.run(host='0.0.0.0', debug=debug_mode)
