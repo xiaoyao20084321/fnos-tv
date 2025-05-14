@@ -1,16 +1,33 @@
-import logging
+import importlib
+import pkgutil
+
+from loguru import logger
 from concurrent.futures import ThreadPoolExecutor
 
 from flask import Blueprint
 from flask import request
 
 from Fuction import get_platform_link, douban_select, douban_get_first_url
-from Getdanmu import GetDanmuBase, download_barrage
-from Getdanmu import RetDanMuType
+from core.danmu.base import GetDanmuBase
+from core.danmu.danmuType import RetDanMuType
+import core.danmu as danmu_base
+
 from core.db.base import CRUDBase
 from core.db.model.videoConfigDb import videoConfigUrl
 
 danmu = Blueprint('alist', __name__, url_prefix='/danmu')
+# 遍历 your_package 中所有子模块
+for finder, mod_name, ispkg in pkgutil.walk_packages(danmu_base.__path__, danmu_base.__name__ + "."):
+    importlib.import_module(mod_name)
+
+
+def download_barrage(_url):
+    # while True:
+    for c in GetDanmuBase.__subclasses__():
+        if c.domain in _url:
+            d = c().get(_url)
+            if d:
+                return d
 
 
 def fetch_emoji(url):
@@ -21,18 +38,18 @@ def fetch_emoji(url):
                 return {"url": url, "data": c().getImg(url)}
         return {"url": url, "data": []}
     except Exception as e:
-        logging.error(f"获取表情失败 {url}: {str(e)}")
+        logger.error(f"获取表情失败 {url}: {str(e)}")
         return {"url": url, "data": []}
 
 
 def fetch_danmu(url, episode_key):
     """获取单个URL的弹幕数据"""
     try:
-        print(f"获取弹幕: {url} (集数: {episode_key})")
+        logger.info(f"获取弹幕: {url} (集数: {episode_key})")
         danmu_data = download_barrage(url)
         return {"key": episode_key, "data": danmu_data}
     except Exception as e:
-        logging.error(f"获取弹幕失败 {url}: {str(e)}")
+        logger.error(f"获取弹幕失败 {url}: {str(e)}")
         return {"key": episode_key, "data": None}
 
 
@@ -46,6 +63,7 @@ def get_danmu():
         season = True if request.args.get('season') == 'true' else False
         url = request.args.get('url')
         guid = request.args.get('guid')
+        _type = request.args.get('type', 'json')
     except Exception as e:
         return {
             "code": -1,
@@ -102,7 +120,7 @@ def get_danmu():
 
     # 使用线程池并行获取所有弹幕
     if tasks:
-        print(f"开始并行获取 {len(tasks)} 个链接的弹幕")
+        logger.info(f"开始并行获取 {len(tasks)} 个链接的弹幕")
         with ThreadPoolExecutor(max_workers=min(20, len(tasks))) as executor:
             results = list(executor.map(lambda args: fetch_danmu(*args), tasks))
 
@@ -110,13 +128,14 @@ def get_danmu():
             for result in results:
                 if result["data"] is not None:
                     k = result["key"]
-                    if k in all_danmu_data.keys():
-                        all_danmu_data[k] += result["data"].list
-                    else:
-                        all_danmu_data[k] = result["data"].list
+                    if k not in all_danmu_data.keys():
+                        all_danmu_data[k] = []
+                    all_danmu_data[k] += result["data"].list
     # 对数据进行排序
     for key, value in all_danmu_data.items():
-        value.sort(key=lambda x: x.get('time'))
+        value.sort(key=lambda x: x.time)
+        if _type == 'xml':
+            all_danmu_data[key] = RetDanMuType(value).xml
 
     return all_danmu_data
 
@@ -132,7 +151,7 @@ def get_emoji():
 
     # 使用线程池并行获取所有表情
     if urls:
-        print(f"开始并行获取 {len(urls)} 个链接的表情")
+        logger.info(f"开始并行获取 {len(urls)} 个链接的表情")
         with ThreadPoolExecutor(max_workers=min(10, len(urls))) as executor:
             all_emoji_data = list(executor.map(fetch_emoji, urls))
 

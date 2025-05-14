@@ -5,10 +5,10 @@ from Config import fnos_url
 from core.db.base import CRUDBase
 from core.db.model.recordDb import RecordDb
 
-fnos = Blueprint('fnos', __name__, url_prefix='/fnos')
+fnos_app = Blueprint('fnos', __name__, url_prefix='/fnos')
 
 
-@fnos.post('/v/api/v1/play/record')
+@fnos_app.post('/v/api/v1/play/record')
 def record():
     """
     记录播放记录，推算跳过片段

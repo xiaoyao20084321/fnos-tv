@@ -6,7 +6,7 @@ from core.db.base import CRUDBase
 from core.db.model.recordDb import RecordDb
 from core.db.model.videoConfigDb import videoConfigList, videoConfigUrl
 
-api_app = Blueprint('fnos', __name__, url_prefix='/api')
+api_app = Blueprint('api', __name__, url_prefix='/api')
 
 
 @api_app.get('/skipList')

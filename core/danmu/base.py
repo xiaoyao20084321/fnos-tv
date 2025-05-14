@@ -1,0 +1,80 @@
+import json
+from typing import List
+
+import requests
+from loguru import logger
+
+from core.danmu.danmuType import DanMuType, RetDanMuType
+
+
+class GetDanmuBase(object):
+    data_list = []
+    name = ""
+    domain = ""
+
+    def get_data_dict(self) -> DanMuType:
+        return DanMuType()
+
+    def request_data(self, session, method, url, status_code=None, **kwargs):
+        """
+        统一的请求函数，用于网络请求
+        :param session: 
+        :param method: 
+        :param url: 
+        :param status_code: 
+        :param kwargs: 
+        :return: 
+        """
+        try:
+            res = session.request(method, url, **kwargs)
+            return res
+        except Exception as e:
+            logger.error(e)
+            return
+
+    def get_link(self, url) -> List:
+        return []
+
+    def main(self, links: List) -> List[requests.Response]:
+        """
+        获取弹幕的主逻辑
+        """
+        pass
+
+    def parse(self) -> list[DanMuType]:
+        """
+        解析返回的原始数据
+        """
+        return []
+
+    def get(self, url, _type='json'):
+        self.data_list = []
+        try:
+            links = self.get_link(url)
+            self.main(links)
+            parse_data = self.parse()
+            return RetDanMuType(parse_data)
+        except Exception as e:
+            return RetDanMuType([])
+
+    def getImg(self, url):
+        """
+        获取弹幕的表情链接
+        """
+        return []
+
+    def time_to_second(self, _time: list):
+        s = 0
+        m = 1
+        for d in _time[::-1]:
+            s += m * int(d)
+            m *= 60
+        return s
+
+    def get_episode_url(self, url: str) -> dict[str, str]:
+        """
+        根据一个链接获取所有剧集链接，返回一个字典
+        :param url: 
+        :return: 
+        """
+        return {}
