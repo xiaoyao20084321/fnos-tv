@@ -96,6 +96,7 @@ def get_url_dict(douban_id, title, season_number, episode_number, season, guid):
 def get_danmu():
     try:
         douban_id = request.args.get('douban_id')
+        douban_id = None if douban_id == "" or douban_id is None or douban_id == 'undefined' else douban_id
         episode_number = request.args.get('episode_number')
         title = request.args.get('title')
         season_number = request.args.get('season_number')
@@ -111,7 +112,10 @@ def get_danmu():
 
     if url is not None and url != "":
         danmu_data: RetDanMuType = download_barrage(url)
-        return danmu_data.list
+        if _type == 'json':
+            return danmu_data.list
+        else:
+            return danmu_data.xml
 
     all_danmu_data = {}
     url_dict = get_url_dict(douban_id, title, season_number, episode_number, season, guid)
