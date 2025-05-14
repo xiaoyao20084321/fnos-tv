@@ -53,27 +53,7 @@ def fetch_danmu(url, episode_key):
         return {"key": episode_key, "data": None}
 
 
-@danmu.get('/get')
-def get_danmu():
-    try:
-        douban_id = request.args.get('douban_id')
-        episode_number = request.args.get('episode_number')
-        title = request.args.get('title')
-        season_number = request.args.get('season_number')
-        season = True if request.args.get('season') == 'true' else False
-        url = request.args.get('url')
-        guid = request.args.get('guid')
-        _type = request.args.get('type', 'json')
-    except Exception as e:
-        return {
-            "code": -1,
-            "msg": '解析参数失败'
-        }
-
-    if url is not None:
-        danmu_data: RetDanMuType = download_barrage(url)
-        return danmu_data.list
-
+def get_url_dict(douban_id, title, season_number, episode_number, season, guid):
     if episode_number:
         episode_number = int(episode_number)
     url_dict = {}
@@ -85,7 +65,7 @@ def get_danmu():
                 url_dict[_episode_number] = []
             url_dict[_episode_number].append(item.url)
     if len(url_dict.keys()) == 0:
-        if season_number != '1' or douban_id == 'undefined':
+        if season_number != '1' or douban_id == 'undefined' or douban_id == "":
             douban_data = douban_select(title, season_number, season)
             douban_id = douban_data['target_id']
         platform_url_list = douban_get_first_url(douban_id)
@@ -109,8 +89,32 @@ def get_danmu():
         url_dict = {
             episode_number: url_dict[f'{episode_number}']
         }
+    return url_dict
+
+
+@danmu.get('/get')
+def get_danmu():
+    try:
+        douban_id = request.args.get('douban_id')
+        episode_number = request.args.get('episode_number')
+        title = request.args.get('title')
+        season_number = request.args.get('season_number')
+        season = True if request.args.get('season') == 'true' else False
+        url = request.args.get('url')
+        guid = request.args.get('guid')
+        _type = request.args.get('type', 'json')
+    except Exception as e:
+        return {
+            "code": -1,
+            "msg": '解析参数失败'
+        }
+
+    if url is not None and url != "":
+        danmu_data: RetDanMuType = download_barrage(url)
+        return danmu_data.list
 
     all_danmu_data = {}
+    url_dict = get_url_dict(douban_id, title, season_number, episode_number, season, guid)
 
     # 准备任务列表
     tasks = []
@@ -140,14 +144,33 @@ def get_danmu():
     return all_danmu_data
 
 
-@danmu.get('getEmoji')
+@danmu.get('/getEmoji')
 def get_emoji():
-    douban_id = request.args.get('douban_id')
-    url_dict = get_platform_link(douban_id)
+    try:
+        douban_id = request.args.get('douban_id')
+        episode_number = request.args.get('episode_number')
+        title = request.args.get('title')
+        season_number = request.args.get('season_number')
+        season = True if request.args.get('season') == 'true' else False
+        url = request.args.get('url')
+        guid = request.args.get('guid')
+        _type = request.args.get('type', 'json')
+    except Exception as e:
+        return {
+            "code": -1,
+            "msg": '解析参数失败'
+        }
+
+    if url is not None and url != "":
+        url_dict = {
+            "1": url
+        }
+    else:
+        url_dict = get_url_dict(douban_id, title, season_number, episode_number, season, guid)
     emoji_data = {}
 
     # 获取所有需要处理的URL
-    urls = url_dict.get('1', [])
+    urls = url_dict.get(list(url_dict.keys())[0], [])
 
     # 使用线程池并行获取所有表情
     if urls:
