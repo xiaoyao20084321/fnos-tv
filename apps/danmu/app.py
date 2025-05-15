@@ -114,7 +114,7 @@ def get_danmu():
     if url is not None and url != "":
         danmu_data: RetDanMuType = download_barrage(url)
         if _type == 'json':
-            return danmu_data.list
+            return [item.__dict__() for item in danmu_data.list]
         else:
             return danmu_data.xml
 
@@ -145,6 +145,8 @@ def get_danmu():
         value.sort(key=lambda x: x.time)
         if _type == 'xml':
             all_danmu_data[key] = RetDanMuType(value).xml
+        else:
+            all_danmu_data[key] = [item.__dict__() for item in value.list]
 
     return all_danmu_data
 
