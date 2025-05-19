@@ -15,6 +15,7 @@ ARG FNOS_URL
 ARG RUN_AND_UPDATE_WEB=false
 ENV FNOS_URL=${FNOS_URL}
 ENV RUN_AND_UPDATE_WEB=${RUN_AND_UPDATE_WEB}
+ENV TZ=Asia/Shanghai
 VOLUME ["/app/data"]
 
 # 复制并安装 Python 依赖
