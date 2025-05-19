@@ -9,3 +9,4 @@ parsel
 cn2an
 jsonpath_ng
 sqlalchemy
+loguru
