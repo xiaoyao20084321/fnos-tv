@@ -6,6 +6,7 @@ import re
 import time
 from typing import List
 
+import parsel
 from curl_cffi import requests
 from tqdm import tqdm
 
@@ -240,3 +241,16 @@ class GetDanmuYouku(GetDanmuBase):
                 }
             )
         return emoji_data_list
+
+    def get_episode_url(self, url: str) -> dict[str, str]:
+        res = self.request_data(self.req, "GET", url)
+        selector = parsel.Selector(res.text)
+        url_dict = {}
+        for item in selector.css('.anthology-container .box-anthology-items > a'):
+            url = item.css("::attr(href)").extract_first()
+            title_str = item.css("::attr(aria-label)").extract_first()
+            title = re.findall('\d+', title_str)
+            if len(title) == 0:
+                continue
+            url_dict[title[0]] = url
+        return url_dict
