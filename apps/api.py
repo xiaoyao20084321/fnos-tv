@@ -1,12 +1,39 @@
+import requests
 from flask import Blueprint, request
 
 import Config
-from Fuction import merge_skipped_segments, calculate_repeat_rate, find_skipped_segments
+from Config import fnos_username, fnos_password
+from Fuction import merge_skipped_segments, calculate_repeat_rate, find_skipped_segments, generate_signature
+from core import alist_api
+from core.Fnos import FnOs
 from core.db.base import CRUDBase
 from core.db.model.recordDb import RecordDb
 from core.db.model.videoConfigDb import videoConfigList, videoConfigUrl
 
+play = Blueprint('play', __name__, url_prefix='/play')
+if fnos_username is not None or fnos_password is not None:
+    FnOs.fn_os_ws.start()
+    FnOs.login(fnos_username, fnos_password)
+
 api_app = Blueprint('api', __name__, url_prefix='/api')
+
+
+@api_app.before_request
+def before_request():
+    url = Config.fnos_url + '/v/api/v1/user/info'
+    sign = generate_signature({
+        'method': "get",
+        'url': '/v/api/v1/user/info'
+    }, "16CCEB3D-AB42-077D-36A1-F355324E4237")
+    res = requests.get(url, headers={
+        'authx': sign,
+        'authorization': request.headers.get('authorization')
+    })
+    if res.json().get('code') != 0:
+        return {
+            "code": -1,
+            "msg": '未登录'
+        }
 
 
 @api_app.get('/skipList')
@@ -89,4 +116,38 @@ def update_video_config():
     return {
         'code': 0,
         "msg": 'ok'
+    }
+
+
+@api_app.get('/play')
+def _play():
+    if fnos_username is None or fnos_password is None:
+        return {
+            'code': -1,
+            "msg": '未获取到飞牛系统账号密码，不做处理'
+        }
+    play_path = request.args.get('path')
+    mountmgr_list = FnOs.mountmgr_list()
+    rsps = mountmgr_list.get('rsp', [])
+    cloud_config = [rsp for rsp in rsps if rsp.get('mountPoint') in play_path]
+    if not cloud_config:
+        return {
+            "code": -1,
+            'msg': '未获取到对应远程挂载信息'
+        }
+    cloud_config = cloud_config[0]
+    if '/dav' not in cloud_config.get('path'):
+        return {
+            "code": -1,
+            'msg': '此远程疑似非alist'
+        }
+    alist_api.alist_host = f'{cloud_config.get("proto")}://{cloud_config.get("address")}:{cloud_config.get("port")}'
+    login_res = alist_api.login(cloud_config.get('userName'), cloud_config.get('password'))
+    alist_api.alist_token = login_res.json().get('data', {}).get('token')
+    alist_path = cloud_config.get("path").replace('/dav', '') + play_path.replace(cloud_config.get('mountPoint'), '')
+    fs_res = alist_api.fs_get(alist_path)
+    return {
+        'code': 0,
+        'data': fs_res.json().get('data', {}).get('raw_url'),
+        'msg': '获取成功'
     }

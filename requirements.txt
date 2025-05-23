@@ -10,3 +10,6 @@ cn2an
 jsonpath_ng
 sqlalchemy
 loguru
+func_timeout
+pycryptodome
+websocket-client

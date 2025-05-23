@@ -1,11 +1,16 @@
-import hashlib
 import os
+import hashlib
+import json
+import math
+import os
+import random
 import re
 import sys
+import time
 import zipfile
-from datetime import datetime
 from itertools import combinations
 from urllib import parse
+from urllib.parse import parse_qsl, urlencode, unquote
 
 import cn2an
 import requests as req
@@ -62,7 +67,7 @@ def douban_select(name: str, tv_num: str, season: bool):
         except (ValueError, TypeError):
             # 如果转换失败，保持原样
             pass
-    
+
     url = "https://frodo.douban.com/api/v2/search/weixin"
 
     params = {
@@ -325,3 +330,117 @@ def merge_skipped_segments(segments):
             else:
                 merged.append(seg)
     return merged
+
+
+def parse_url(o: str):
+    """
+    将 URL 拆分为路径和参数字典，过滤掉值为 'undefined' 或 'null' 的参数
+    :param o: 原始 URL 字符串
+    :return: (path, params_dict)
+    """
+    parts = o.split('?', 1)
+    path = parts[0]
+    params = {}
+    if len(parts) > 1 and parts[1]:
+        for k, v in parse_qsl(parts[1], keep_blank_values=True):
+            if v not in ('undefined', 'null'):
+                params[k] = v
+    return path, params
+
+
+def hash_signature_data(o: str = '') -> str:
+    """
+    对字符串进行解码并计算 MD5，若解码失败则直接对原始串计算
+    :param o: 原始字符串（可能包含百分号编码）
+    :return: MD5 十六进制摘要
+    """
+    try:
+        # 将无效百分号转义后再解码
+        safe = o.replace('%(?![0-9A-Fa-f]{2})', '%25')
+        decoded = unquote(safe)
+        return hashlib.md5(decoded.encode('utf-8')).hexdigest()
+    except Exception:
+        return hashlib.md5(o.encode('utf-8')).hexdigest()
+
+
+def rc(t) -> str:
+    """
+    返回对象类型名称
+    """
+    return type(t).__name__
+
+
+def is_undefined(t) -> bool:
+    """
+    判断是否为 None（映射 JS 中的 undefined）
+    """
+    return t is None
+
+
+def is_null(t) -> bool:
+    """
+    判断是否为 None（映射 JS 中的 null）
+    """
+    return t is None
+
+
+def stringify_params(o: dict = None) -> str:
+    """
+    将字典按键排序并编码为查询字符串，过滤掉 None 值，空格编码为 %20
+    :param o: 参数字典
+    :return: 排序后的查询字符串
+    """
+    if o is None:
+        o = {}
+    filtered = {k: v for k, v in sorted(o.items()) if not is_undefined(v) and not is_null(v)}
+    qs = urlencode(filtered, doseq=True)
+    return qs.replace('+', '%20')
+
+
+def get_random_number(o: float = 0, s: float = 100, a: str = 'round') -> int:
+    """
+    获取范围内随机数，可指定取整方式：round、floor、ceil
+    :param o: 最小值
+    :param s: 最大值
+    :param a: 取整方式
+    :return: 随机整数
+    """
+    val = random.random() * (s - o) + o
+    if a == 'floor':
+        return math.floor(val)
+    if a == 'ceil':
+        return math.ceil(val)
+    # 默认 round
+    return round(val)
+
+
+def generate_signature(o: dict, s: str = '') -> str:
+    """
+    根据请求信息生成签名参数串：nonce、timestamp、sign
+    :param o: 请求信息，包含 method、url、params、data
+    :param s: 签名中附加的密钥字符串
+    :return: 格式化后的签名参数串，如 nonce=...&timestamp=...&sign=...
+    """
+    try:
+        method = o.get('method', '').upper()
+        is_get = method == 'GET'
+        url = o.get('url', '')
+        path, query_params = parse_url(url)
+
+        if is_get:
+            combined = {**o.get('params', {}), **query_params}
+            rt = stringify_params(combined)
+        else:
+            rt = json.dumps(o.get('data', {}), separators=(',', ':'), ensure_ascii=False) if o.get(
+                'data') is not None else ''
+
+        st = hash_signature_data(rt)
+        nonce = str(get_random_number(1e5, 1e6, 'round')).zfill(6)
+        timestamp = str(int(time.time() * 1000))
+        raw = '_'.join(["NDzZTVxnRKP8Z0jXg1VAMonaG8akvh", path, nonce, timestamp, st, s])
+        sign = hashlib.md5(raw.encode('utf-8')).hexdigest()
+
+        return f"nonce={nonce}&timestamp={timestamp}&sign={sign}"
+    except Exception as e:
+        print(e)
+        return ''
