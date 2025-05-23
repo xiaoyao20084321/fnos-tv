@@ -1,5 +1,17 @@
 ﻿import os
+import configparser
 
 fnos_url = os.environ.get("FNOS_URL", 'http://localhost:5666')
-fnos_username = os.environ.get("FNOS_USERNAME", None)
-fnos_password = os.environ.get("FNOS_PASSWORD", None)
+config = configparser.ConfigParser()
+if not os.path.exists("./data/config.ini"):
+    with open("./data/config.ini", "w", encoding='utf-8') as configfile:
+        configfile.write('''# config.ini
+[FNOS]
+# 飞牛系统账号
+username =
+# 飞牛系统密码
+password =''')
+config.read('./data/config.ini', encoding='utf-8')
+fn_config = config['FNOS']
+fnos_username = fn_config.get("FNOS_USERNAME")
+fnos_password = fn_config.get("FNOS_PASSWORD")
