@@ -13,5 +13,5 @@ username =
 password =''')
 config.read('./data/config.ini', encoding='utf-8')
 fn_config = config['FNOS']
-fnos_username = fn_config.get("FNOS_USERNAME")
-fnos_password = fn_config.get("FNOS_PASSWORD")
+fnos_username = fn_config.get("username")
+fnos_password = fn_config.get("password")
