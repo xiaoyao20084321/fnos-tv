@@ -31,3 +31,19 @@ def record():
     )
     return res.json()
     # return 'ok'
+
+
+@fnos_app.delete('/v/api/v1/play/record')
+def record_delete():
+    """
+    删除继续播放的内容
+    :return: 
+    """
+    data = request.json
+    # 转发到飞牛原始接口
+    res = requests.delete(f"{fnos_url}/v/api/v1/play/record", json=data, headers={
+        "Cookie": request.headers.get('Cookie'),
+        "authorization": request.headers.get('authorization'),
+        "authx": request.headers.get('authx'),
+    })
+    return res.json()
