@@ -80,7 +80,7 @@ class GetFnOsData:
             "password": password,
             "deviceType": "Browser",
             "deviceName": "Windows-Google Chrome",
-            "stay": False,
+            "stay": True,
             "req": "user.login",
             "si": si
         }
