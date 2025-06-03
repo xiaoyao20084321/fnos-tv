@@ -11,7 +11,7 @@ from venv import logger
 from curl_cffi import requests
 from tqdm import tqdm
 
-import bilibilidm_pb2 as Danmaku
+import core.danmu.bilibilidm_pb2 as Danmaku
 from Fuction import request_data
 from core.danmu.base import GetDanmuBase
 
