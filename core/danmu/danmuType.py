@@ -54,7 +54,7 @@ class RetDanMuType:
         return base_xml.format('\n'.join([self.list2xml(d) for d in self.list]))
 
     def list2xml(self, data: DanMuType):
-        color = str(data) if isinstance(data, str) and data.startswith(
-            "#") else f'#{int(data):06X}'
+        color = str(data.color) if isinstance(data.color, str) and data.color.startswith(
+            "#") else f'#{int(data.color):06X}'
         xml_str = f'    <d p="{data.time},{data.mode},{data.style.get("size", 25)},{int(color[1:], 16) if isinstance(data.color, str) and data.color.startswith("#") else data.color},0,0,0,0">{data.escape_xml()}</d>'
         return xml_str
