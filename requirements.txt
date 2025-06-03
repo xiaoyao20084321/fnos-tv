@@ -13,3 +13,4 @@ SQLAlchemy==2.0.38
 tqdm==4.66.5
 websocket_client==1.8.0
 xmltodict==0.14.2
+gunicorn
