@@ -1,4 +1,4 @@
-﻿from sqlalchemy import func
+from sqlalchemy import func
 
 from core.db.db import SessionLocal
 
