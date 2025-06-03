@@ -1,4 +1,4 @@
-﻿import os
+import os
 
 from Fuction import fetch_latest_dist_zip, unzip_file
 

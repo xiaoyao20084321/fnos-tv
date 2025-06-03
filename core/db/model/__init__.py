@@ -1,4 +1,4 @@
-﻿from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.declarative import declarative_base
 
 
 # 创建 ORM 基类
