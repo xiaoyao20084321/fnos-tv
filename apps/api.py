@@ -20,20 +20,21 @@ api_app = Blueprint('api', __name__, url_prefix='/api')
 
 @api_app.before_request
 def before_request():
-    url = Config.fnos_url + '/v/api/v1/user/info'
-    sign = generate_signature({
-        'method': "get",
-        'url': '/v/api/v1/user/info'
-    }, "16CCEB3D-AB42-077D-36A1-F355324E4237")
-    res = requests.get(url, headers={
-        'authx': sign,
-        'authorization': request.headers.get('authorization')
-    })
-    if res.json().get('code') != 0:
-        return {
-            "code": -1,
-            "msg": '未登录'
-        }
+    if 'getFnUrl' not in request.path:
+        url = Config.fnos_url + '/v/api/v1/user/info'
+        sign = generate_signature({
+            'method': "get",
+            'url': '/v/api/v1/user/info'
+        }, "16CCEB3D-AB42-077D-36A1-F355324E4237")
+        res = requests.get(url, headers={
+            'authx': sign,
+            'authorization': request.headers.get('authorization')
+        })
+        if res.json().get('code') != 0:
+            return {
+                "code": -1,
+                "msg": '未登录'
+            }
 
 
 @api_app.get('/skipList')

@@ -21,6 +21,7 @@ class FnOsWsBase:
         )
         self.isRun = False
         self.pending_futures = {}
+        self.fn_os: GetFnOsData = None
 
     def on_message(self, ws, message):
         logger.info(f"接收到消息：{message}")
@@ -75,6 +76,7 @@ class FnOsWsBase:
 
     def send_heartbeat(self):
         while True:
+            time.sleep(10)
             if self.ws and self.ws.sock and self.ws.sock.connected:
                 heartbeat_msg = {
                     "req": "ping"
@@ -84,11 +86,40 @@ class FnOsWsBase:
                     logger.debug("发送心跳包")
                 except Exception as e:
                     logger.warning(f"发送心跳失败：{e}")
-            time.sleep(10)
+            else:
+                break
+    
+    def send_active(self):
+        while True:
+            time.sleep(60)
+            if self.ws and self.ws.sock and self.ws.sock.connected:
+                msg = {
+                    "req": "user.active",
+                    "reqid": "683e5ca7683e5c6a000000d50056"
+                }
+                try:
+                    self.ws.send(json.dumps(msg))
+                    logger.debug("发送user.active")
+                except Exception as e:
+                    logger.warning(f"发送user.active失败：{e}")
+            else:
+                break
+            
+    def login_by_token(self):
+        si_msg = self.fn_os.get_si()
+        si_ret = self.send(**si_msg)
+        auth_token = self.fn_os.auth_token(si_ret.get('si'))
+        res = self.send(**auth_token)
+        self.fn_os.set_login_data(**res)
 
     def start(self):
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
         threading.Thread(target=self.send_heartbeat, daemon=True).start()
+        threading.Thread(target=self.send_active, daemon=True).start()
+
+    def stop(self):
+        self.isRun = False
+        self.ws.close()
 
 
 class FnOsWsFile(FnOsWsBase):
@@ -98,9 +129,3 @@ class FnOsWsFile(FnOsWsBase):
         """
         super().__init__('file')
         self.fn_os = fn_os
-
-    def login(self):
-        si_msg = self.fn_os.get_si()
-        si_ret = self.send(**si_msg)
-        auth_token = self.fn_os.auth_token(si_ret.get('si'))
-        self.send(**auth_token)

@@ -29,6 +29,7 @@ def login(username, password):
     msg = fn_os.login_data(username, password, rsa_pub.get('si'), rsa_pub.get('pub'))
     future = fn_os_ws.send(**msg)
     fn_os.set_login_data(**future)
+    fn_os_ws.fn_os = fn_os
     return future
 
 
