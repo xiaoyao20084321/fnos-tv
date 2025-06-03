@@ -156,13 +156,13 @@ def get_danmu():
 def get_emoji():
     try:
         douban_id = request.args.get('douban_id')
+        douban_id = None if douban_id == "" or douban_id is None or douban_id == 'undefined' else douban_id
         episode_number = request.args.get('episode_number')
         title = request.args.get('title')
         season_number = request.args.get('season_number')
         season = True if request.args.get('season') == 'true' else False
         url = request.args.get('url')
         guid = request.args.get('guid')
-        _type = request.args.get('type', 'json')
     except Exception as e:
         return {
             "code": -1,
