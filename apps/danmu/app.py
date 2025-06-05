@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from flask import Blueprint
 from flask import request
+from flask import Response
 
 from Fuction import get_platform_link, douban_select, douban_get_first_url
 from core.danmu.base import GetDanmuBase
@@ -193,3 +194,39 @@ def get_emoji():
                         emoji_data[d['emoji_code']] = d['emoji_url']
 
     return emoji_data
+
+@danmu.get('/download')
+def download_danmu():
+    try:
+        url = request.args.get('url')
+        if not url:
+            return {
+                "code": -1,
+                "msg": '缺少url参数'
+            }
+    except Exception as e:
+        return {
+            "code": -1,
+            "msg": '解析参数失败'
+        }
+
+    # 默认文件名
+    filename = 'danmu.xml'
+    
+    # 获取弹幕数据并下载
+    danmu_data: RetDanMuType = download_barrage(url)
+    if danmu_data:
+        danmu_data.list.sort(key=lambda x: x.time)
+        xml_content = danmu_data.xml
+        response = Response(xml_content, mimetype='application/xml')
+        response.headers.set('Content-Disposition', f'attachment; filename={filename}')
+        return response
+    
+    # 如果没有找到任何弹幕数据，返回空的XML
+    empty_xml = '''<?xml version="1.0" encoding="utf-8"?>
+<i>
+</i>'''
+    response = Response(empty_xml, mimetype='application/xml')
+    response.headers.set('Content-Disposition', f'attachment; filename={filename}')
+    return response
+
