@@ -230,3 +230,55 @@ def download_danmu():
     response.headers.set('Content-Disposition', f'attachment; filename={filename}')
     return response
 
+
+@danmu.get('/get_uz')
+def get_uz_danmu():
+    """新增接口，返回FNOS-TV格式的弹幕JSON数据"""
+    try:
+        url = request.args.get('url')
+        if not url:
+            return {
+                "code": -1,
+                "msg": '缺少url参数'
+            }
+    except Exception as e:
+        return {
+            "code": -1,
+            "msg": '解析参数失败'
+        }
+
+    # 获取弹幕数据
+    danmu_data: RetDanMuType = download_barrage(url)
+    if danmu_data:
+        danmu_data.list.sort(key=lambda x: x.time)
+        
+        # 格式化弹幕数据
+        formatted_danmus = []
+        for item in danmu_data.list:
+            item_dict = item.__dict__()
+            # 转换为用户需要的二维数组格式 [时间, 类型, 颜色, 弹幕文字大小, 弹幕内容]
+            formatted_item = [
+                item_dict["time"],  # 时间（秒）
+                "left",  # 类型固定为"left"
+                item_dict["color"],  # 颜色（保留#）
+                str(item_dict.get("size", 25)),  # 弹幕文字大小，转为字符串
+                item_dict["text"]  # 弹幕内容
+            ]
+            formatted_danmus.append(formatted_item)
+        
+        # 返回FNOS-TV格式的JSON
+        return {
+            "code": 23,  # 成功代码为23
+            "name": url,  # 使用URL作为name
+            "danum": len(formatted_danmus),  # 弹幕数量
+            "danmuku": formatted_danmus  # 格式化后的弹幕列表
+        }
+    
+    # 如果没有找到任何弹幕数据
+    return {
+        "code": -1,
+        "msg": "未找到弹幕数据",
+        "danum": 0,
+        "danmuku": []
+    }
+

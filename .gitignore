@@ -1,2 +1,18 @@
 ﻿/dist/
 /.idea
+# 忽略虚拟环境文件夹
+/venv/
+# 忽略python缓存文件
+__pycache__/
+# 忽略python编译文件
+*.py[cod]
+# 忽略python编译类文件
+*$py.class
+# 忽略python编译库文件
+*.so
+# 忽略python环境文件
+.Python
+# 忽略日志文件
+*.log
+# 忽略数据文件
+/data/
