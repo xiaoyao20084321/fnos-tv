@@ -32,9 +32,13 @@ class FnOsWsBase:
 
     def on_error(self, ws, error):
         logger.error(f"错误：{error}")
+        self.stop()
+        self.start()
 
     def on_close(self, ws, close_status_code, close_msg):
         logger.error("连接关闭")
+        self.stop()
+        self.start()
 
     def on_open(self, ws):
         # def run():
