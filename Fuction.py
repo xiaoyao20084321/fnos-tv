@@ -1,4 +1,3 @@
-import os
 import hashlib
 import json
 import math
@@ -11,6 +10,7 @@ import zipfile
 from itertools import combinations
 from urllib import parse
 from urllib.parse import parse_qsl, urlencode, unquote
+from urllib.parse import urlparse
 
 import cn2an
 import requests as req
@@ -133,8 +133,11 @@ def douban_get_first_url(target_id):
     json_data = res.json().get('vendors', [])
     url_list = []
     for item in json_data:
-        if item.get('url'):
+        if item.get('url') and 'douban' not in item.get('url').split('?')[0]:
             url_list.append(item.get('url'))
+            continue
+        if item.get('uri'):
+            url_list.append(item.get('uri'))
     return url_list
 
 
@@ -444,3 +447,9 @@ def generate_signature(o: dict, s: str = '') -> str:
     except Exception as e:
         print(e)
         return ''
+
+
+def resolve_url_query(url: str) -> dict[str, list[str]]:
+    _url = urlparse(url)
+    parad = parse.parse_qs(_url.query)
+    return parad
