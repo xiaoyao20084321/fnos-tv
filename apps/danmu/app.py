@@ -1,5 +1,7 @@
 import importlib
 import pkgutil
+import re
+from typing import List
 
 from loguru import logger
 from concurrent.futures import ThreadPoolExecutor
@@ -8,7 +10,7 @@ from flask import Blueprint
 from flask import request
 from flask import Response
 
-from Fuction import get_platform_link, douban_select, douban_get_first_url
+from Fuction import get_platform_link, douban_select, douban_get_first_url, resolve_url_query
 from core.danmu.base import GetDanmuBase
 from core.danmu.danmuType import RetDanMuType
 import core.danmu as danmu_base
@@ -43,6 +45,21 @@ def fetch_emoji(url):
         return {"url": url, "data": []}
 
 
+def other2http(platform_url_list: List[str]):
+    ret_list = []
+    for url in platform_url_list:
+        if not url.startswith("http"):
+            agreement = re.findall("^(.*?):", url)
+            query = resolve_url_query(url)
+            match agreement:
+                case ['txvideo']:
+                    url = f'https://v.qq.com/x/cover/{query.get("cid")[0]}/{query.get("vid")[0]}.html'
+                case ["iqiyi"]:
+                    url = f'http://www.iqiyi.com?tvid={query.get("tvid")[0]}'
+        ret_list.append(url)
+    return ret_list
+
+
 def fetch_danmu(url, episode_key):
     """获取单个URL的弹幕数据"""
     try:
@@ -70,7 +87,8 @@ def get_url_dict(douban_id, title, season_number, episode_number, season, guid):
                 douban_id and season_number and season_number != '1'):  # 没有豆瓣ID，需要程序匹配
             douban_data = douban_select(title, season_number, season)
             douban_id = douban_data['target_id']
-        platform_url_list = douban_get_first_url(douban_id)
+        # 处理豆瓣的特殊链接，有些如iqiyi:\/\/mobile\/player?aid=225041201&tvid=9749815600&ftype=27&subtype=333转为http协议
+        platform_url_list = other2http(douban_get_first_url(douban_id))
         for platform_url in platform_url_list:
             for c in GetDanmuBase.__subclasses__():
                 if c.domain in platform_url:
