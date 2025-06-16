@@ -140,7 +140,7 @@ class GetDanmuTencent(GetDanmuBase):
                 "vid": vid,
                 "lid": "",
                 "page_num": "",
-                "page_context": "",
+                "page_context": "episode_begin=1&episode_end=100&episode_step=1&page_num=0&page_size=100",
                 "detail_page_type": "1"
             },
             "has_cache": 1
@@ -156,5 +156,5 @@ class GetDanmuTencent(GetDanmuBase):
         url_dict = {}
         for item in data_list:
             item_params = item.get('item_params')
-            url_dict[f"{item_params.get('album_order')}"] = item_params.get('page_url')
+            url_dict[f"{item_params.get('title')}"] = f'https://v.qq.com/x/cover/{item_params.get("cid")}/{item_params.get("vid")}.html'
         return url_dict

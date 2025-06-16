@@ -1,10 +1,11 @@
-import re
+import concurrent.futures
 import concurrent.futures
 import re
 import time
 import zlib
 from functools import partial
 from typing import List
+from urllib import parse
 from venv import logger
 
 import xmltodict
@@ -12,7 +13,7 @@ from curl_cffi import requests
 from jsonpath_ng import parse
 from tqdm import tqdm
 
-from Fuction import get_md5
+from Fuction import get_md5, resolve_url_query
 from core.danmu.base import GetDanmuBase
 
 
@@ -39,13 +40,17 @@ class GetDanmuIqiyi(GetDanmuBase):
         return
 
     def get_link(self, url) -> List[str]:
-        _req = self._req
-        res = _req.request("GET", url,
-                           headers={"Accept-Encoding": "gzip,deflate,compress"}, impersonate="chrome124")
-        res.encoding = "UTF-8"
-        js_url = re.findall(r'<script src="(.*?)" referrerpolicy="no-referrer-when-downgrade">', res.text)[0]
-        res = _req.request('GET', f'https:{js_url}', headers={'referer': url})
-        tv_id = re.findall('"tvId":([0-9]+)', res.text)[0]
+        query = resolve_url_query(url)
+        if query.get('tvid'):
+            tv_id = query.get('tvid')[0]
+        else:
+            _req = self._req
+            res = _req.request("GET", url,
+                               headers={"Accept-Encoding": "gzip,deflate,compress"}, impersonate="chrome124")
+            res.encoding = "UTF-8"
+            js_url = re.findall(r'<script src="(.*?)" referrerpolicy="no-referrer-when-downgrade">', res.text)[0]
+            res = _req.request('GET', f'https:{js_url}', headers={'referer': url})
+            tv_id = re.findall('"tvId":([0-9]+)', res.text)[0]
         base_url = f"https://cmts.iqiyi.com/bullet/{tv_id[-4:-2]}/{tv_id[-2:]}/{tv_id}_300_%s.z"
         return [base_url]
 
@@ -103,13 +108,17 @@ class GetDanmuIqiyi(GetDanmuBase):
         return emoji_data_list
 
     def get_episode_url(self, url):
-        _req = requests.Session(impersonate="chrome124")
-        res = _req.request("GET", url,
-                           headers={"Accept-Encoding": "gzip,deflate,compress"}, impersonate="chrome124")
-        res.encoding = "UTF-8"
-        js_url = re.findall(r'<script src="(.*?)" referrerpolicy="no-referrer-when-downgrade">', res.text)[0]
-        res = _req.request('GET', f'https:{js_url}', headers={'referer': url})
-        tv_id = re.findall('"tvId":([0-9]+)', res.text)[0]
+        query = resolve_url_query(url)
+        _req = self._req
+        if query.get('tvid'):
+            tv_id = query.get('tvid')[0]
+        else:
+            res = _req.request("GET", url,
+                               headers={"Accept-Encoding": "gzip,deflate,compress"}, impersonate="chrome124")
+            res.encoding = "UTF-8"
+            js_url = re.findall(r'<script src="(.*?)" referrerpolicy="no-referrer-when-downgrade">', res.text)[0]
+            res = _req.request('GET', f'https:{js_url}', headers={'referer': url})
+            tv_id = re.findall('"tvId":([0-9]+)', res.text)[0]
         params = f'entity_id={tv_id}&src=pca_tvg&timestamp={int(time.time())}&secret_key=howcuteitis'
         url = f'https://mesh.if.iqiyi.com/tvg/v2/lw/base_info?{params}&sign={get_md5(params).upper()}'
         res = _req.request('GET', url, headers={'referer': url})
