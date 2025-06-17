@@ -127,7 +127,11 @@ class GetDanmuIqiyi(GetDanmuBase):
         result_objs = [match.context.value for match in matches if match.value == "选集"]
         url_dict = {}
         for result_obj in result_objs:
-            d = result_obj.get('data', {}).get('data', [{}])[0].get('videos', {}).get('feature_paged', {})
+            d = result_obj.get('data', {}).get('data', [{}])[0].get('videos', {})
+            if isinstance(d, str):
+                _res = _req.get(d)
+                d = _res.json().get("data", {}).get('videos', {})
+            d = d.get('feature_paged', {})
             for k in list(d.keys()):
                 for item in d[k]:
                     if item.get('page_url'):
