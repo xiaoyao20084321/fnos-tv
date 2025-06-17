@@ -58,8 +58,7 @@ class GetDanmuTencent(GetDanmuBase):
                 _d.other['create_time'] = item.get('create_time', "")
                 if item.get("content_style") != "":
                     content_style = json.loads(item.get("content_style"))
-                    if content_style.get("color") != "ffffff":
-                        _d.color = int(content_style.get("color", "ffffff"), 16)
+                    _d.color = int(content_style.get("color", "ffffff").replace("#", ""), 16)
                 data_list.append(_d)
         return data_list
 
@@ -156,5 +155,6 @@ class GetDanmuTencent(GetDanmuBase):
         url_dict = {}
         for item in data_list:
             item_params = item.get('item_params')
-            url_dict[f"{item_params.get('title')}"] = f'https://v.qq.com/x/cover/{item_params.get("cid")}/{item_params.get("vid")}.html'
+            url_dict[
+                f"{item_params.get('title')}"] = f'https://v.qq.com/x/cover/{item_params.get("cid")}/{item_params.get("vid")}.html'
         return url_dict
