@@ -25,6 +25,8 @@
 
 麻烦各位大佬帮忙点点Star
 
+交流群：[https://t.me/+A7GUCFz5iOY0NTc1](https://t.me/+A7GUCFz5iOY0NTc1)
+
 # 效果展示
 
 播放页面
