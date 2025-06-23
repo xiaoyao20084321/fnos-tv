@@ -1,4 +1,4 @@
-Brotli==1.0.9
+brotli==1.0.9
 cn2an==0.5.23
 curl_cffi==0.7.4
 Flask==3.1.1
@@ -8,8 +8,9 @@ loguru==0.6.0
 parsel==1.9.1
 protobuf==6.31.1
 pycryptodome==3.20.0
-Requests==2.32.4
+requests==2.32.4
 retrying==1.3.4
 SQLAlchemy==2.0.38
 tqdm==4.66.5
 websocket_client==1.8.0
+gunicorn
