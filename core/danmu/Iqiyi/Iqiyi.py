@@ -2,17 +2,17 @@ import concurrent.futures
 import concurrent.futures
 import re
 import time
-import zlib
 from functools import partial
 from typing import List
 from urllib import parse
 from venv import logger
 
-import xmltodict
+import brotli
 from curl_cffi import requests
 from jsonpath_ng import parse
 from tqdm import tqdm
 
+import core.danmu.Iqiyi.Iqiyidm_pb2 as Iqiyidm_pb2
 from Fuction import get_md5, resolve_url_query
 from core.danmu.base import GetDanmuBase
 
@@ -28,63 +28,57 @@ class GetDanmuIqiyi(GetDanmuBase):
     def request_data_by_iqiyi(self, method, url, *args, **kwargs):
         res = self.request_data(self._req, method, url=url, *args, **kwargs)
         if res.status_code == 200:
-            # 解压缩数据
-            decompressed_data = zlib.decompress(res.content)
-            data = decompressed_data.decode('utf-8')
-            data_list = []
-            for d in re.findall('<bulletInfo>.*?</bulletInfo>', data, re.S):
-                d = d.replace('&#', '')
-                d_dict = xmltodict.parse(d).get("bulletInfo")
-                data_list.append(d_dict)
-            return data_list
+            return res
         return
 
     def get_link(self, url) -> List[str]:
-        query = resolve_url_query(url)
-        if query.get('tvid'):
-            tv_id = query.get('tvid')[0]
-        else:
-            _req = self._req
-            res = _req.request("GET", url,
-                               headers={"Accept-Encoding": "gzip,deflate,compress"}, impersonate="chrome124")
-            res.encoding = "UTF-8"
-            js_url = re.findall(r'<script src="(.*?)" referrerpolicy="no-referrer-when-downgrade">', res.text)[0]
-            res = _req.request('GET', f'https:{js_url}', headers={'referer': url})
-            tv_id = re.findall('"tvId":([0-9]+)', res.text)[0]
-        base_url = f"https://cmts.iqiyi.com/bullet/{tv_id[-4:-2]}/{tv_id[-2:]}/{tv_id}_300_%s.z"
-        return [base_url]
+        url_list = []
+        _req = self._req
+        res = _req.request("GET", url,
+                           headers={"Accept-Encoding": "gzip,deflate,compress"}, impersonate="chrome124")
+        res.encoding = "UTF-8"
+        js_url = re.findall(r'<script src="(.*?)" referrerpolicy="no-referrer-when-downgrade">', res.text)[0]
+        res = _req.request('GET', f'https:{js_url}', headers={'referer': url})
+        tv_id = re.findall('"tvId":([0-9]+)', res.text)[0]
+        video_duration = int(re.findall('"videoDuration":([0-9]+)', res.text)[0])
+        step_length = 60
+        max_index = int(video_duration / step_length) + 1
+        for index in range(1, max_index + 1):
+            i = f'{tv_id}_{step_length}_{index}cbzuw1259a'
+            s = get_md5(i)[-8:]
+            o = f'{tv_id}_{step_length}_{index}_{s}.br'
+            url_list.append(f"https://cmts.iqiyi.com/bullet/{tv_id[-4:-2]}/{tv_id[-2:]}/{o}")
+        return url_list
 
     def parse(self):
         data_list = []
         for data in tqdm(self.data_list):
-            for item in data:
-                try:
-                    _d = self.get_data_dict()
-                    _d.time = int(item.get("showTime"))
-                    _d.text = item.get("content")
-                    _d.color = int(item.get("color"), 16)
-                    _d.style["size"] = int(item.get("font"))
-                    data_list.append(_d)
-                except Exception as e:
-                    logger.error(e)
-                    pass
+            out = brotli.decompress(bytearray(data.content))
+            danmu = Iqiyidm_pb2.Danmu()
+            danmu.ParseFromString(out)
+            for entry in danmu.entry:
+                for item in entry.bulletInfo:
+                    try:
+                        _d = self.get_data_dict()
+                        _d.time = int(item.showTime)
+                        _d.text = item.content
+                        _d.color = int(item.a8, 16)
+                        _d.style["size"] = int(25)
+                        data_list.append(_d)
+                    except Exception as e:
+                        logger.error(e)
+                        pass
         return data_list
 
     def main(self, links: List[str]):
         page = 1
-        link = links[0]
-        while True:
-            # 一次获取20页的数据
-            url_list = [link % i for i in range(page, page + 20)]
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(url_list))) as executor:
-                fun = partial(self.request_data_by_iqiyi, "GET", headers={'Content-Type': 'application/octet-stream'})
-                results = list(tqdm(executor.map(fun, url_list),
-                                    total=len(url_list),
-                                    desc=f"爱奇艺弹幕获取-{page}-{page + 19}"))
-                self.data_list.extend([r for r in results if r is not None])
-                if len([r for r in results if r is None]) > 0:
-                    break
-                page += 20
+        url_list = links
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(url_list))) as executor:
+            fun = partial(self.request_data_by_iqiyi, "GET")
+            results = list(tqdm(executor.map(fun, url_list),
+                                total=len(url_list),
+                                desc=f"爱奇艺弹幕获取-{page}-{page + 19}"))
+            self.data_list.extend([r for r in results if r is not None])
         return self.data_list
 
     def getImg(self, url):
