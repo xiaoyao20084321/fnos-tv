@@ -71,7 +71,7 @@ def fetch_danmu(url, episode_key):
         return {"key": episode_key, "data": None}
 
 
-def get_url_dict(douban_id, title, season_number, episode_number, season, guid):
+def get_url_dict(douban_id, title=None, season_number=None, episode_number=None, season=None, guid=None, episode_title=None):
     if episode_number:
         episode_number = int(episode_number)
     url_dict = {}
@@ -100,14 +100,15 @@ def get_url_dict(douban_id, title, season_number, episode_number, season, guid):
     if len(url_dict.keys()) == 0:
         url_dict = get_platform_link(douban_id)
 
-    if episode_number is not None and str(episode_number) in url_dict:
+    if str(episode_number) in url_dict or episode_title in url_dict:
+        url_list = url_dict.get(str(episode_number), url_dict.get(episode_title, []))
         if guid is not None:
             # 如果匹配到直接保存到数据库内
             db = CRUDBase(videoConfigUrl)
-            for item in url_dict[f'{episode_number}']:
+            for item in url_list:
                 db.add(guid=guid, url=item)
         url_dict = {
-            episode_number: url_dict[f'{episode_number}']
+            episode_number: url_list
         }
     return url_dict
 
@@ -118,6 +119,7 @@ def get_danmu():
         douban_id = request.args.get('douban_id')
         douban_id = None if douban_id == "" or douban_id is None or douban_id == 'undefined' else douban_id
         episode_number = request.args.get('episode_number')
+        episode_title = request.args.get('episode_title')
         title = request.args.get('title')
         season_number = request.args.get('season_number')
         season = True if request.args.get('season') == 'true' else False
@@ -139,7 +141,7 @@ def get_danmu():
             return danmu_data.xml
 
     all_danmu_data = {}
-    url_dict = get_url_dict(douban_id, title, season_number, episode_number, season, guid)
+    url_dict = get_url_dict(douban_id, title, season_number, episode_number, season, guid, episode_title)
 
     # 准备任务列表
     tasks = []
@@ -177,6 +179,7 @@ def get_emoji():
         douban_id = request.args.get('douban_id')
         douban_id = None if douban_id == "" or douban_id is None or douban_id == 'undefined' else douban_id
         episode_number = request.args.get('episode_number')
+        episode_title = request.args.get('episode_title')
         title = request.args.get('title')
         season_number = request.args.get('season_number')
         season = True if request.args.get('season') == 'true' else False
@@ -193,7 +196,7 @@ def get_emoji():
             "1": url
         }
     else:
-        url_dict = get_url_dict(douban_id, title, season_number, episode_number, season, guid)
+        url_dict = get_url_dict(douban_id, title, season_number, episode_number, season, guid, episode_title)
     emoji_data = {}
 
     # 获取所有需要处理的URL
