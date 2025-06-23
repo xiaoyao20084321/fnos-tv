@@ -7,7 +7,7 @@ from typing import List
 from urllib import parse
 from venv import logger
 
-import brotli
+import brotlicffi as brotli
 from curl_cffi import requests
 from jsonpath_ng import parse
 from tqdm import tqdm
@@ -53,7 +53,7 @@ class GetDanmuIqiyi(GetDanmuBase):
     def parse(self):
         data_list = []
         for data in tqdm(self.data_list):
-            out = brotli.decompress(bytearray(data.content))
+            out = brotli.decompress(data.content)
             danmu = Iqiyidm_pb2.Danmu()
             danmu.ParseFromString(out)
             for entry in danmu.entry:
