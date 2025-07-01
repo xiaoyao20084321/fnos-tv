@@ -25,6 +25,7 @@ class videoConfigUrl(Base):
 
     id = Column(Integer, primary_key=True)
     guid = Column(String)  # 剧集ID
+    parent_guid = Column(String)  # 剧集的母ID，比如说一集电视对应的季度ID
     url = Column(String)
 
     def get_data(self):
