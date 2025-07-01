@@ -3,6 +3,7 @@ import os
 
 from flask import Flask
 
+from Fuction import run_alembic_upgrade
 from apps.api import api_app
 from apps.danmu.app import danmu
 from apps.fnos.app import fnos_app
@@ -19,6 +20,8 @@ app.register_blueprint(api_app, url_prefix='/api')
 if not os.path.exists('./data/log'):
     os.makedirs('./data/log')
 
+# 执行数据库迁移操作
+run_alembic_upgrade()
 # 创建表
 Base.metadata.create_all(engine)
 
