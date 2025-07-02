@@ -33,6 +33,19 @@ def download_barrage(_url):
                 return d
 
 
+def get_episode_url(platform_url_list):
+    url_dict = {}
+    for platform_url in platform_url_list:
+        for c in GetDanmuBase.__subclasses__():
+            if c.domain in platform_url:
+                d = c().get_episode_url(platform_url)
+                for k, v in d.items():
+                    if k not in url_dict.keys():
+                        url_dict[str(k)] = []
+                    url_dict[str(k)].append(v)
+    return url_dict
+
+
 def fetch_emoji(url):
     """获取单个URL的表情数据"""
     try:
@@ -71,32 +84,35 @@ def fetch_danmu(url, episode_key):
         return {"key": episode_key, "data": None}
 
 
-def get_url_dict(douban_id, title=None, season_number=None, episode_number=None, season=None, guid=None, episode_title=None):
+def get_url_dict(douban_id, title=None, season_number=None, episode_number=None, season=None, guid=None,
+                 episode_title=None, parent_guid=None):
     if episode_number:
         episode_number = int(episode_number)
     url_dict = {}
+    db = CRUDBase(videoConfigUrl)
     if guid is not None and episode_number:
         _episode_number = str(episode_number)
-        db = CRUDBase(videoConfigUrl)
         for item in db.filter(guid=guid):
             if _episode_number not in url_dict:
                 url_dict[_episode_number] = []
             url_dict[_episode_number].append(item.url)
+    if parent_guid is not None and len(url_dict.keys()) == 0:
+        platform_url_list = []
+        for item in db.filter(parent_guid=parent_guid):
+            platform_url_list.append(item.url)
+        if len(platform_url_list) != 0:
+            url_dict = get_episode_url(platform_url_list)
+
     if len(url_dict.keys()) == 0:
         if douban_id is None and (title is not None) and season_number is not None or (
                 douban_id and season_number and season_number != '1'):  # 没有豆瓣ID，需要程序匹配
             douban_data = douban_select(title, season_number, season)
-            douban_id = douban_data['target_id']
+            if douban_data:
+                douban_id = douban_data['target_id']
         # 处理豆瓣的特殊链接，有些如iqiyi:\/\/mobile\/player?aid=225041201&tvid=9749815600&ftype=27&subtype=333转为http协议
         platform_url_list = other2http(douban_get_first_url(douban_id))
-        for platform_url in platform_url_list:
-            for c in GetDanmuBase.__subclasses__():
-                if c.domain in platform_url:
-                    d = c().get_episode_url(platform_url)
-                    for k, v in d.items():
-                        if k not in url_dict.keys():
-                            url_dict[str(k)] = []
-                        url_dict[str(k)].append(v)
+        url_dict = get_episode_url(platform_url_list)
+
     if len(url_dict.keys()) == 0:
         url_dict = get_platform_link(douban_id)
 
@@ -106,7 +122,7 @@ def get_url_dict(douban_id, title=None, season_number=None, episode_number=None,
             # 如果匹配到直接保存到数据库内
             db = CRUDBase(videoConfigUrl)
             for item in url_list:
-                db.add(guid=guid, url=item)
+                db.add(guid=guid, url=item, parent_guid=parent_guid)
         url_dict = {
             episode_number: url_list
         }
@@ -116,15 +132,16 @@ def get_url_dict(douban_id, title=None, season_number=None, episode_number=None,
 @danmu.get('/get')
 def get_danmu():
     try:
-        douban_id = request.args.get('douban_id')
+        douban_id = request.args.get('douban_id', None)
         douban_id = None if douban_id == "" or douban_id is None or douban_id == 'undefined' else douban_id
-        episode_number = request.args.get('episode_number')
-        episode_title = request.args.get('episode_title')
+        episode_number = request.args.get('episode_number', None)
+        episode_title = request.args.get('episode_title', None)
         title = request.args.get('title')
-        season_number = request.args.get('season_number')
+        season_number = request.args.get('season_number', None)
         season = True if request.args.get('season') == 'true' else False
-        url = request.args.get('url')
-        guid = request.args.get('guid')
+        url = request.args.get('url', None)
+        guid = request.args.get('guid', None)
+        parent_guid = request.args.get('parent_guid', None)
         _type = request.args.get('type', 'json')
     except Exception as e:
         return {
@@ -141,7 +158,7 @@ def get_danmu():
             return danmu_data.xml
 
     all_danmu_data = {}
-    url_dict = get_url_dict(douban_id, title, season_number, episode_number, season, guid, episode_title)
+    url_dict = get_url_dict(douban_id, title, season_number, episode_number, season, guid, episode_title, parent_guid)
 
     # 准备任务列表
     tasks = []
@@ -176,15 +193,17 @@ def get_danmu():
 @danmu.get('/getEmoji')
 def get_emoji():
     try:
-        douban_id = request.args.get('douban_id')
+        douban_id = request.args.get('douban_id', None)
         douban_id = None if douban_id == "" or douban_id is None or douban_id == 'undefined' else douban_id
-        episode_number = request.args.get('episode_number')
-        episode_title = request.args.get('episode_title')
+        episode_number = request.args.get('episode_number', None)
+        episode_title = request.args.get('episode_title', None)
         title = request.args.get('title')
-        season_number = request.args.get('season_number')
+        season_number = request.args.get('season_number', None)
         season = True if request.args.get('season') == 'true' else False
-        url = request.args.get('url')
-        guid = request.args.get('guid')
+        url = request.args.get('url', None)
+        guid = request.args.get('guid', None)
+        parent_guid = request.args.get('parent_guid', None)
+        _type = request.args.get('type', 'json')
     except Exception as e:
         return {
             "code": -1,
@@ -196,8 +215,11 @@ def get_emoji():
             "1": url
         }
     else:
-        url_dict = get_url_dict(douban_id, title, season_number, episode_number, season, guid, episode_title)
+        url_dict = get_url_dict(douban_id, title, season_number, episode_number, season, guid, episode_title,
+                                parent_guid=parent_guid)
     emoji_data = {}
+    if len(url_dict.keys()) == 0:
+        return emoji_data
 
     # 获取所有需要处理的URL
     urls = url_dict.get(list(url_dict.keys())[0], [])

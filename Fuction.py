@@ -4,6 +4,7 @@ import math
 import os
 import random
 import re
+import subprocess
 import sys
 import time
 import zipfile
@@ -453,3 +454,9 @@ def resolve_url_query(url: str) -> dict[str, list[str]]:
     _url = urlparse(url)
     parad = parse.parse_qs(_url.query)
     return parad
+
+
+def run_alembic_upgrade():
+    # 确保alembic.ini在当前目录
+    alembic_ini = os.path.join(os.path.dirname(__file__), 'alembic.ini')
+    subprocess.run(["alembic", "-c", alembic_ini, "upgrade", "head"], check=True)

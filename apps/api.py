@@ -107,12 +107,16 @@ def update_video_config():
         'url': videoConfigUrl,
     }
     for key, value in data.items():
+        parent_guid = None
         db = CRUDBase(db_type[key])
         if key == "list":
             _guid = guid
         else:
             _guid = episode_guid
+            parent_guid = guid
         for item in value:
+            if parent_guid is not  None:
+                item['parent_guid'] = parent_guid
             db.add(guid=_guid, **item)
     return {
         'code': 0,
