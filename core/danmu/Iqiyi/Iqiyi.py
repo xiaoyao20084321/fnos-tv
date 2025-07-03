@@ -82,10 +82,12 @@ class GetDanmuIqiyi(GetDanmuBase):
         return self.data_list
 
     def getImg(self, url):
-        _req = requests.Session(impersonate="chrome124")
+        _req = self._req
         res = _req.request("GET", url,
                            headers={"Accept-Encoding": "gzip,deflate,compress"}, impersonate="chrome124")
         res.encoding = "UTF-8"
+        js_url = re.findall(r'<script src="(.*?)" referrerpolicy="no-referrer-when-downgrade">', res.text)[0]
+        res = _req.request('GET', f'https:{js_url}', headers={'referer': url})
         tv_id = re.findall('"tvId":([0-9]+)', res.text)[0]
 
         Imgurl = f'https://emoticon-sns.iqiyi.com/jaguar-core/danmu_config?qyId=36d9d90bed6d447b1b72be2cd7c8e4ba&qipuId=common&tvid={tv_id}'
