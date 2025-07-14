@@ -64,7 +64,7 @@ class GetDanmuBilibili(GetDanmuBase):
                     )
                     ret_data.append(
                         'https://api.bilibili.com/x/v2/dm/wbi/web/seg.so?' + urllib.parse.urlencode(signed_params))
-                ret_data.append(f"https://comment.bilibili.com/{target_episode.get("cid")}.xml")
+                ret_data.append(f"https://comment.bilibili.com/{target_episode.get('cid')}.xml")
                 
                 return ret_data
         return []
@@ -81,14 +81,14 @@ class GetDanmuBilibili(GetDanmuBase):
                     _d = self.get_data_dict()
                     _d.text = elem.content
                     _mode = elem.mode
-                    mode = 0
+                    mode = 1
                     match _mode:
                         case 1 | 2 | 3:
-                            mode = 0
-                        case 4:
-                            mode = 2
-                        case 5:
                             mode = 1
+                        case 4:
+                            mode = 4
+                        case 5:
+                            mode = 5
                     _d.time = float(elem.progress / 1000)
                     _d.mode = mode
                     _d.style['size'] = elem.fontsize
@@ -104,14 +104,14 @@ class GetDanmuBilibili(GetDanmuBase):
                     _d.text = data[1]
                     data_time = data[0].split(",")
                     _mode = int(data_time[1])
-                    mode = 0
+                    mode = 1
                     match _mode:
                         case 1 | 2 | 3:
-                            mode = 0
-                        case 4:
-                            mode = 2
-                        case 5:
                             mode = 1
+                        case 4:
+                            mode = 4
+                        case 5:
+                            mode = 5
     
                     _d.time = float(data_time[0])
                     _d.mode = mode
