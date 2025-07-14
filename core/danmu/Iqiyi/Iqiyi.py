@@ -37,7 +37,11 @@ class GetDanmuIqiyi(GetDanmuBase):
         res = _req.request("GET", url,
                            headers={"Accept-Encoding": "gzip,deflate,compress"}, impersonate="chrome124")
         res.encoding = "UTF-8"
-        js_url = re.findall(r'<script src="(.*?)" referrerpolicy="no-referrer-when-downgrade">', res.text)[0]
+        js_url = re.findall(r'<script src="(.*?)" referrerpolicy="no-referrer-when-downgrade">', res.text)
+        if len(js_url) == 0:
+            js_url = '//mesh.if.iqiyi.com/player/lw/lwplay/accelerator.js?apiVer=3'
+        else:
+            js_url = js_url[0]
         res = _req.request('GET', f'https:{js_url}', headers={'referer': url})
         tv_id = re.findall('"tvId":([0-9]+)', res.text)[0]
         video_duration = int(re.findall('"videoDuration":([0-9]+)', res.text)[0])
@@ -77,7 +81,7 @@ class GetDanmuIqiyi(GetDanmuBase):
             fun = partial(self.request_data_by_iqiyi, "GET")
             results = list(tqdm(executor.map(fun, url_list),
                                 total=len(url_list),
-                                desc=f"爱奇艺弹幕获取-{page}-{page + 19}"))
+                                desc=f"爱奇艺弹幕获取"))
             self.data_list.extend([r for r in results if r is not None])
         return self.data_list
 
