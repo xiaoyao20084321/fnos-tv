@@ -64,32 +64,62 @@ class GetDanmuBilibili(GetDanmuBase):
                     )
                     ret_data.append(
                         'https://api.bilibili.com/x/v2/dm/wbi/web/seg.so?' + urllib.parse.urlencode(signed_params))
+                ret_data.append(f"https://comment.bilibili.com/{target_episode.get("cid")}.xml")
+                
                 return ret_data
         return []
 
     def parse(self):
         data_list = []
+        ids = []
         for item in self.data_list:
-            data = item.content
-            danmaku_seg = Danmaku.DmSegMobileReply()
-            danmaku_seg.ParseFromString(data)
-            for elem in danmaku_seg.elems:
-                _d = self.get_data_dict()
-                _d.text = elem.content
-                _mode = elem.mode
-                mode = 0
-                match _mode:
-                    case 1 | 2 | 3:
-                        mode = 0
-                    case 4:
-                        mode = 2
-                    case 5:
-                        mode = 1
-                _d.time = float(elem.progress / 1000)
-                _d.mode = mode
-                _d.style['size'] = elem.fontsize
-                _d.color = elem.color
-                data_list.append(_d)
+            if item.headers.get("content-type") != "text/xml":
+                data = item.content
+                danmaku_seg = Danmaku.DmSegMobileReply()
+                danmaku_seg.ParseFromString(data)
+                for elem in danmaku_seg.elems:
+                    _d = self.get_data_dict()
+                    _d.text = elem.content
+                    _mode = elem.mode
+                    mode = 0
+                    match _mode:
+                        case 1 | 2 | 3:
+                            mode = 0
+                        case 4:
+                            mode = 2
+                        case 5:
+                            mode = 1
+                    _d.time = float(elem.progress / 1000)
+                    _d.mode = mode
+                    _d.style['size'] = elem.fontsize
+                    _d.color = elem.color
+                    if(elem.idStr not in ids):
+                        data_list.append(_d)
+                        ids.append(elem.idStr)
+            else:
+                xml_data = item.text
+                datas = re.findall('<d p="(.*?)">(.*?)<\/d>', xml_data)
+                for data in tqdm(datas):
+                    _d = self.get_data_dict()
+                    _d.text = data[1]
+                    data_time = data[0].split(",")
+                    _mode = int(data_time[1])
+                    mode = 0
+                    match _mode:
+                        case 1 | 2 | 3:
+                            mode = 0
+                        case 4:
+                            mode = 2
+                        case 5:
+                            mode = 1
+    
+                    _d.time = float(data_time[0])
+                    _d.mode = mode
+                    _d.style['size'] = data_time[2]
+                    _d.color = data_time[3]
+                    if data_time[7] not in ids:
+                        data_list.append(_d)
+                        ids.append(data_time[7])
 
         return data_list
 
