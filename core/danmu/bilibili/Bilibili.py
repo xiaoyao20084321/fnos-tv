@@ -102,8 +102,11 @@ class GetDanmuBilibili(GetDanmuBase):
 
     def main(self, links: List[str]):
         self.data_list = []
+        cookie = ""
+        if 'BILIBILI' in self.config.keys():
+            cookie = self.config["BILIBILI"].get('cookie', '')
         headers = {
-            'cookie': self.config["BILIBILI"].get('cookie')
+            'cookie': cookie
         }
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(links))) as executor:
             fun = partial(self.request_data, requests, "GET", impersonate="chrome110", headers=headers)
