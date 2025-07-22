@@ -6,12 +6,13 @@ from functools import partial
 from functools import reduce
 from hashlib import md5
 from typing import List
-from venv import logger
 
 from curl_cffi import requests
+from loguru import logger
 from tqdm import tqdm
 
-import core.danmu.bilibilidm_pb2 as Danmaku
+import Config
+import core.danmu.bilibili.bilibilidm_pb2 as Danmaku
 from Fuction import request_data
 from core.danmu.base import GetDanmuBase
 
@@ -31,6 +32,7 @@ class GetDanmuBilibili(GetDanmuBase):
         self.api_video_info = "https://api.bilibili.com/x/web-interface/view"
         self.api_epid_cid = "https://api.bilibili.com/pgc/view/web/season"
         self.img_key, self.sub_key = self.getWbiKeys()
+        self.config = Config.config
 
     def get_link(self, url) -> List[str]:
         if url.find("bangumi/") != -1 and url.find("ep") != -1:
@@ -51,6 +53,7 @@ class GetDanmuBilibili(GetDanmuBase):
                     break
             if target_episode:
                 ret_data = []
+                # for i in range(1, int(target_episode.get('duration', 0) / 360) + 1):
                 for i in range(1, 20):
                     params = {
                         'type': 1,  # 弹幕类型
@@ -64,15 +67,15 @@ class GetDanmuBilibili(GetDanmuBase):
                     )
                     ret_data.append(
                         'https://api.bilibili.com/x/v2/dm/wbi/web/seg.so?' + urllib.parse.urlencode(signed_params))
-                ret_data.append(f"https://comment.bilibili.com/{target_episode.get('cid')}.xml")
-                
+                ret_data.append(f"https://comment.bilibili.com/{target_episode.get("cid")}.xml")
+
                 return ret_data
         return []
 
     def parse(self):
         data_list = []
         ids = []
-        for item in self.data_list:
+        for item in tqdm(self.data_list):
             if item.headers.get("content-type") != "text/xml":
                 data = item.content
                 danmaku_seg = Danmaku.DmSegMobileReply()
@@ -81,38 +84,38 @@ class GetDanmuBilibili(GetDanmuBase):
                     _d = self.get_data_dict()
                     _d.text = elem.content
                     _mode = elem.mode
-                    mode = 1
+                    mode = 0
                     match _mode:
                         case 1 | 2 | 3:
-                            mode = 1
+                            mode = 0
                         case 4:
-                            mode = 4
+                            mode = 2
                         case 5:
-                            mode = 5
+                            mode = 1
                     _d.time = float(elem.progress / 1000)
                     _d.mode = mode
                     _d.style['size'] = elem.fontsize
                     _d.color = elem.color
-                    if(elem.idStr not in ids):
+                    if (elem.idStr not in ids):
                         data_list.append(_d)
                         ids.append(elem.idStr)
             else:
                 xml_data = item.text
                 datas = re.findall('<d p="(.*?)">(.*?)<\/d>', xml_data)
-                for data in tqdm(datas):
+                for data in datas:
                     _d = self.get_data_dict()
                     _d.text = data[1]
                     data_time = data[0].split(",")
                     _mode = int(data_time[1])
-                    mode = 1
+                    mode = 0
                     match _mode:
                         case 1 | 2 | 3:
-                            mode = 1
+                            mode = 0
                         case 4:
-                            mode = 4
+                            mode = 2
                         case 5:
-                            mode = 5
-    
+                            mode = 1
+
                     _d.time = float(data_time[0])
                     _d.mode = mode
                     _d.style['size'] = data_time[2]
@@ -125,12 +128,15 @@ class GetDanmuBilibili(GetDanmuBase):
 
     def main(self, links: List[str]):
         self.data_list = []
+        headers = {
+            'cookie': self.config["BILIBILI"].get('cookie')
+        }
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(links))) as executor:
-            fun = partial(self.request_data, requests, "GET", impersonate="chrome110")
+            fun = partial(self.request_data, requests, "GET", impersonate="chrome110", headers=headers)
             results = list(tqdm(executor.map(fun, links),
                                 total=len(links),
                                 desc="哔哩哔哩弹幕获取"))
-            self.data_list.extend(results)
+            self.data_list.extend([i for i in results if i.status_code == 200])
 
         return self.data_list
 
