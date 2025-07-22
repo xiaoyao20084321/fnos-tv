@@ -15,7 +15,7 @@ from core.danmu.base import GetDanmuBase
 
 class GetDanmuYouku(GetDanmuBase):
     name = "优酷"
-    domain = "v.youku.com"
+    domain = "youku.com"
 
     def __init__(self):
         super().__init__()
