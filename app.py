@@ -9,6 +9,7 @@ from apps.danmu.app import danmu
 from apps.fnos.app import fnos_app
 from core.db.db import engine
 from core.db.model import Base
+from core.db.model import videoConfigDb, recordDb
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
