@@ -89,19 +89,18 @@ class GetDanmuYouku(GetDanmuBase):
             })
         return all_params
 
-    def parse(self):
+    def parse(self, data):
         data_list = []
-        for data in tqdm(self.data_list):
-            result = json.loads(data.get('data', {}).get('result', {}))
-            if result.get('code', '-1') == '-1':
-                continue
-            danmus = result.get('data', {}).get('result', [])
-            for danmu in danmus:
-                _d = self.get_data_dict()
-                _d.time = danmu.get('playat') / 1000
-                _d.color = json.loads(danmu.get('propertis', '{}')).get('color', _d.color)
-                _d.text = danmu.get('content')
-                data_list.append(_d)
+        result = json.loads(data.get('data', {}).get('result', {}))
+        if result.get('code', '-1') == '-1':
+            return data_list
+        danmus = result.get('data', {}).get('result', [])
+        for danmu in danmus:
+            _d = self.get_data_dict()
+            _d.time = danmu.get('playat') / 1000
+            _d.color = json.loads(danmu.get('propertis', '{}')).get('color', _d.color)
+            _d.text = danmu.get('content')
+            data_list.append(_d)
         return data_list
 
     def fetch_segment(self, params):

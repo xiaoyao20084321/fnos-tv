@@ -9,6 +9,7 @@ from apps.danmu.app import danmu
 from apps.fnos.app import fnos_app
 from core.db.db import engine
 from core.db.model import Base
+from core.db.model import videoConfigDb, recordDb
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
@@ -20,10 +21,11 @@ app.register_blueprint(api_app, url_prefix='/api')
 if not os.path.exists('./data/log'):
     os.makedirs('./data/log')
 
-# 执行数据库迁移操作
-run_alembic_upgrade()
+
 # 创建表
 Base.metadata.create_all(engine)
+# 执行数据库迁移操作
+run_alembic_upgrade()
 
 if __name__ == '__main__':
     debug_mode = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'

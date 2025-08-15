@@ -47,19 +47,18 @@ class GetDanmuTencent(GetDanmuBase):
                          vid + "/" + item.get("segment_name", "/")) for item in segment_indices]
         return links
 
-    def parse(self):
+    def parse(self, _data):
         data_list = []
-        for _data in tqdm(self.data_list):
-            data = _data.json()
-            for item in data.get("barrage_list", []):
-                _d = self.get_data_dict()
-                _d.time = int(item.get("time_offset", 0)) / 1000
-                _d.text = item.get("content", "")
-                _d.other['create_time'] = item.get('create_time', "")
-                if item.get("content_style") != "":
-                    content_style = json.loads(item.get("content_style"))
-                    _d.color = int(content_style.get("color", "ffffff").replace("#", ""), 16)
-                data_list.append(_d)
+        data = _data.json()
+        for item in data.get("barrage_list", []):
+            _d = self.get_data_dict()
+            _d.time = int(item.get("time_offset", 0)) / 1000
+            _d.text = item.get("content", "")
+            _d.other['create_time'] = item.get('create_time', "")
+            if item.get("content_style") != "":
+                content_style = json.loads(item.get("content_style"))
+                _d.color = int(content_style.get("color", "ffffff").replace("#", ""), 16)
+            data_list.append(_d)
         return data_list
 
     def main(self, links):

@@ -51,27 +51,26 @@ class GetDanmuIqiyi(GetDanmuBase):
             i = f'{tv_id}_{step_length}_{index}cbzuw1259a'
             s = get_md5(i)[-8:]
             o = f'{tv_id}_{step_length}_{index}_{s}.br'
-            url_list.append(f"https://cmts.iqiyi.com/bullet/{tv_id[-4:-2]}/{tv_id[-2:]}/{o}")
+            # url_list.append(f"https://cmts.iqiyi.com/bullet/{tv_id[-4:-2]}/{tv_id[-2:]}/{o}")
         return url_list
 
-    def parse(self):
+    def parse(self, data):
         data_list = []
-        for data in tqdm(self.data_list):
-            out = brotli.decompress(data.content)
-            danmu = Iqiyidm_pb2.Danmu()
-            danmu.ParseFromString(out)
-            for entry in danmu.entry:
-                for item in entry.bulletInfo:
-                    try:
-                        _d = self.get_data_dict()
-                        _d.time = int(item.showTime)
-                        _d.text = item.content
-                        _d.color = int(item.a8, 16)
-                        _d.style["size"] = int(25)
-                        data_list.append(_d)
-                    except Exception as e:
-                        logger.error(e)
-                        pass
+        out = brotli.decompress(data.content)
+        danmu = Iqiyidm_pb2.Danmu()
+        danmu.ParseFromString(out)
+        for entry in danmu.entry:
+            for item in entry.bulletInfo:
+                try:
+                    _d = self.get_data_dict()
+                    _d.time = int(item.showTime)
+                    _d.text = item.content
+                    _d.color = int(item.a8, 16)
+                    _d.style["size"] = int(25)
+                    data_list.append(_d)
+                except Exception as e:
+                    logger.error(e)
+                    pass
         return data_list
 
     def main(self, links: List[str]):

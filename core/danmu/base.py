@@ -3,6 +3,9 @@ from typing import List
 
 import requests
 from loguru import logger
+from requests import Response
+import concurrent.futures
+from tqdm import tqdm
 
 from core.danmu.danmuType import DanMuType, RetDanMuType
 
@@ -41,7 +44,7 @@ class GetDanmuBase(object):
         """
         pass
 
-    def parse(self) -> list[DanMuType]:
+    def parse(self, data: Response) -> list[DanMuType]:
         """
         解析返回的原始数据
         """
@@ -52,7 +55,13 @@ class GetDanmuBase(object):
         try:
             links = self.get_link(url)
             self.main(links)
-            parse_data = self.parse()
+            parse_data = []
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(self.data_list))) as executor:
+                results = list(tqdm(executor.map(self.parse, self.data_list),
+                                    total=len(self.data_list),
+                                    desc="弹幕数据解析"))
+                for result in results:
+                    parse_data.extend(result)
             return RetDanMuType(parse_data)
         except Exception as e:
             return RetDanMuType([])

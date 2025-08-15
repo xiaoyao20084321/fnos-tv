@@ -71,32 +71,28 @@ class GetDanmuBilibili(GetDanmuBase):
                 return ret_data
         return []
 
-    def parse(self):
+    def parse(self, item):
         data_list = []
-        ids = []
-        for item in tqdm(self.data_list):
-            data = item.content
-            danmaku_seg = Danmaku.DmSegMobileReply()
-            danmaku_seg.ParseFromString(data)
-            for elem in danmaku_seg.elems:
-                _d = self.get_data_dict()
-                _d.text = elem.content
-                _mode = elem.mode
-                mode = 1
-                match _mode:
-                    case 1 | 2 | 3:
-                        mode = 1
-                    case 4:
-                        mode = 4
-                    case 5:
-                        mode = 5
-                _d.time = float(elem.progress / 1000)
-                _d.mode = mode
-                _d.style['size'] = elem.fontsize
-                _d.color = elem.color
-                if (elem.idStr not in ids):
-                    data_list.append(_d)
-                    ids.append(elem.idStr)
+        data = item.content
+        danmaku_seg = Danmaku.DmSegMobileReply()
+        danmaku_seg.ParseFromString(data)
+        for elem in danmaku_seg.elems:
+            _d = self.get_data_dict()
+            _d.text = elem.content
+            _mode = elem.mode
+            mode = 0
+            match _mode:
+                case 1 | 2 | 3:
+                    mode = 0
+                case 4:
+                    mode = 2
+                case 5:
+                    mode = 1
+            _d.time = float(elem.progress / 1000)
+            _d.mode = mode
+            _d.style['size'] = elem.fontsize
+            _d.color = elem.color
+            data_list.append(_d)
 
         return data_list
 
