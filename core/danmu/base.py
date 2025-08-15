@@ -4,7 +4,7 @@ from typing import List
 import requests
 from loguru import logger
 from requests import Response
-from tornado import concurrent
+import concurrent.futures
 from tqdm import tqdm
 
 from core.danmu.danmuType import DanMuType, RetDanMuType
