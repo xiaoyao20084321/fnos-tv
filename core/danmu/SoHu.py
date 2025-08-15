@@ -25,15 +25,14 @@ class GetDanmuSoHu(GetDanmuBase):
         base_url = f'https://api.danmu.tv.sohu.com/dmh5/dmListAll?act=dmlist_v2&request_from=h5_js&vid={vid}&aid={aid}&time_begin=%s&time_end=%s'
         return [base_url]
 
-    def parse(self):
+    def parse(self, _data):
         data_list = []
-        for _data in tqdm(self.data_list):
-            data = _data.json()
-            for d in data.get("info", {}).get("comments", []):
-                _d = self.get_data_dict()
-                _d.time = d.get('v', 0)
-                _d.text = d.get('c', '')
-                data_list.append(_d)
+        data = _data.json()
+        for d in data.get("info", {}).get("comments", []):
+            _d = self.get_data_dict()
+            _d.time = d.get('v', 0)
+            _d.text = d.get('c', '')
+            data_list.append(_d)
         return data_list
 
     def main(self, links):

@@ -32,17 +32,16 @@ class GetDanmuMgtv(GetDanmuBase):
 
         return [f'{self.api_danmaku}?vid={vid}&cid={cid}&time={item}' for item in range(0, end_time, 60 * 1000)]
 
-    def parse(self):
+    def parse(self, _data):
         data_list = []
-        for _data in tqdm(self.data_list):
-            data = _data.json()
-            if data.get("data", {}).get("items", []) is None:
-                continue
-            for d in data.get("data", {}).get("items", []):
-                _d = self.get_data_dict()
-                _d.time = d.get('time', 0) / 1000
-                _d.text = d.get('content', '')
-                data_list.append(_d)
+        data = _data.json()
+        if data.get("data", {}).get("items", []) is None:
+            return data_list
+        for d in data.get("data", {}).get("items", []):
+            _d = self.get_data_dict()
+            _d.time = d.get('time', 0) / 1000
+            _d.text = d.get('content', '')
+            data_list.append(_d)
         return data_list
 
     def main(self, links: List[str]):
