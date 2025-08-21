@@ -160,11 +160,11 @@ def select_by_360(name: str, tv_num: str, season):
         title = item.get('titleTxt', '')
         d_tv_num = re.findall("第(.*?)季", title)
         if not d_tv_num:
-            d_tv_num = re.findall(f'{name}(\d+)', title)
+            d_tv_num = re.findall(f'{re.escape(name)}(\d+)', title)
         if not d_tv_num:
             roman_num = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"]
             roman_num_str = '|'.join(roman_num)
-            _d_tv_num = re.findall(f'{name}([{roman_num_str}]+)', title)
+            _d_tv_num = re.findall(f'{re.escape(name)}([{roman_num_str}]+)', title)
             if _d_tv_num:
                 d_tv_num = [roman_num.index(_d_tv_num[0])]
         if not d_tv_num:
