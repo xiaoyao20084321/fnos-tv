@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from flask import Blueprint
 from flask import request
 
-from Fuction import get_platform_link, douban_select, douban_get_first_url, resolve_url_query
+from Fuction import get_platform_link, douban_select, douban_get_first_url, resolve_url_query, select_by_360
 from core.danmu.base import GetDanmuBase
 from core.danmu.danmuType import RetDanMuType
 import core.danmu as danmu_base
@@ -89,6 +89,7 @@ def get_url_dict(douban_id, title=None, season_number=None, episode_number=None,
         episode_number = int(episode_number)
     url_dict = {}
     db = CRUDBase(videoConfigUrl)
+    # 数据库匹配数据
     if guid is not None and episode_number:
         _episode_number = str(episode_number)
         for item in db.filter(guid=guid):
@@ -102,6 +103,15 @@ def get_url_dict(douban_id, title=None, season_number=None, episode_number=None,
         if len(platform_url_list) != 0:
             url_dict = get_episode_url(platform_url_list)
 
+    # 360影视获取链接
+    if len(url_dict.keys()) == 0:
+        _360data = select_by_360(title, season_number, season)
+        platform_url_list = []
+        for key, value in _360data.get("playlinks", {}).items():
+            platform_url_list.append(value)
+        url_dict = get_episode_url(platform_url_list)
+        
+    # 豆瓣获取链接
     if len(url_dict.keys()) == 0:
         if douban_id is None and (title is not None) and season_number is not None or (
                 douban_id and season_number and season_number != '1'):  # 没有豆瓣ID，需要程序匹配

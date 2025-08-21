@@ -53,3 +53,16 @@ class GetDanmuMgtv(GetDanmuBase):
             self.data_list.extend(results)
 
         return self.data_list
+
+    def get_episode_url(self, url: str, url_dict={}, page=1) -> dict[str, str]:
+        video_id = url.split('.')[-2].split('/')[-1]
+        _data_url = f"https://pcweb.api.mgtv.com/episode/list?version=5.5.35&video_id={video_id}&page={page}&size=50"
+        res = request_data("GET", url=_data_url)
+
+        for item in res.json().get("data", {}).get('list', []):
+            if item.get('t1') not in url_dict.keys():
+                url_dict[item.get('t1')] = 'https://www.mgtv.com' + item.get('url')
+        if len(url_dict.keys()) < res.json().get('data', {}).get('total', len(url_dict.keys())):
+            page += 1
+            return self.get_episode_url(url, url_dict, page)
+        return url_dict
