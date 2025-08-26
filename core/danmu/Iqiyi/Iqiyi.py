@@ -51,7 +51,7 @@ class GetDanmuIqiyi(GetDanmuBase):
             i = f'{tv_id}_{step_length}_{index}cbzuw1259a'
             s = get_md5(i)[-8:]
             o = f'{tv_id}_{step_length}_{index}_{s}.br'
-            # url_list.append(f"https://cmts.iqiyi.com/bullet/{tv_id[-4:-2]}/{tv_id[-2:]}/{o}")
+            url_list.append(f"https://cmts.iqiyi.com/bullet/{tv_id[-4:-2]}/{tv_id[-2:]}/{o}")
         return url_list
 
     def parse(self, data):
