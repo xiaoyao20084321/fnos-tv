@@ -95,3 +95,7 @@ RUN_AND_UPDATE_WEB默认为false，如果你需要重启容器时更新前端可
 在电脑地址栏输入IP+端口号访问即可
 
 注意！！登录的账号密码是飞牛影视的账号密码，不是飞牛系统的！！！！
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=thshu/fnos-tv&type=Timeline)](https://www.star-history.com/#thshu/fnos-tv&Timeline)
