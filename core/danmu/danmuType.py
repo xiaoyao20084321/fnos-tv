@@ -14,6 +14,8 @@ class DanMuType:
     other: dict = field(default_factory=dict)  # 其他数据
 
     def __dict__(self):
+        if isinstance(self.color, str):
+            self.color = self.color.replace('"', '')
         return dict(
             text=self.text.replace('&#', ''),
             time=int(self.time),
