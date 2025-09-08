@@ -245,11 +245,13 @@ class GetDanmuYouku(GetDanmuBase):
         res = self.request_data(self.req, "GET", url)
         selector = parsel.Selector(res.text)
         url_dict = {}
-        for item in selector.css('.anthology-container .box-anthology-items > a'):
-            url = item.css("::attr(href)").extract_first()
-            title_str = item.css("::attr(aria-label)").extract_first()
-            title = re.findall('\d+', title_str)
-            if len(title) == 0:
-                continue
-            url_dict[title[0]] = url
+        data = re.search(r'window\.__INITIAL_DATA__\s*=\s*({[\s\S]*?});', res.text).group(1)
+        json_data = json.loads(data)
+        for item in json_data.get('moduleList', [{}])[0].get("components", []):
+            if item.get('type') == 10013:
+                for d in item.get("itemList", []):
+                    title = d.get('title')
+                    rank = d.get('stage')
+                    url = f'https://v.youku.com/v_show/id_{d.get("action_value")}.html'
+                    url_dict[rank] = url
         return url_dict
