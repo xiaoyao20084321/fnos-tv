@@ -12,8 +12,9 @@ from core.Fnos.GetFnOsData import GetFnOsData
 
 class FnOsWsBase:
     def __init__(self, type='main'):
-        self.ws = ws = websocket.WebSocketApp(
-            f'wss://{fnos_url.split('//')[1]}/websocket?type={type}',
+        agreement ='wss' if  fnos_url.startswith("https://") else 'ws'
+        self.ws = websocket.WebSocketApp(
+            f'{agreement}://{fnos_url.split('//')[1]}/websocket?type={type}',
             on_open=self.on_open,
             on_message=self.on_message,
             on_error=self.on_error,
