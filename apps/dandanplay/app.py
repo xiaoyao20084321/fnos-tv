@@ -4,10 +4,11 @@ import requests
 from flask import Blueprint, request, jsonify
 
 from Fuction import request_data
-from apps.danmu.app import download_barrage
+from apps.danmu.app import download_barrage, get_episode_url
 from core.danmu.danmuType import RetDanMuType
 
 dandanplay_app = Blueprint('dandanplay', __name__, url_prefix='/dandanplay')
+
 
 # Redis配置 - 全内存模式
 redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
@@ -39,18 +40,24 @@ def convert_to_dandanplay_anime_list(search_data):
     rows = search_data.get('data', {}).get('longData', {}).get('rows', [])
     
     for item in rows:
-        # 计算集数
-        episode_count = 1  # 默认1集（电影）
-        if item.get('cat_id') == '2' and item.get('seriesPlaylinks'):  # 电视剧
-            episode_count = len([link for link in item.get('seriesPlaylinks', []) if isinstance(link, dict)])
-        elif item.get('coverInfo', {}).get('txt'):
-            # 从coverInfo提取集数信息
+        # 搜索阶段：使用简单的集数估算，不调用复杂的get_episode_url
+        episode_count = 1  # 默认1集
+        
+        # 优先从coverInfo获取集数信息（快速且可靠）
+        if item.get('coverInfo', {}).get('txt'):
             cover_text = item.get('coverInfo', {}).get('txt', '')
             if '集' in cover_text:
                 try:
                     episode_count = int(cover_text.replace('全', '').replace('更新至', '').replace('集', ''))
                 except:
                     episode_count = 1
+        # 如果coverInfo没有信息，对于电视剧类型给一个合理的估算
+        elif item.get('cat_id') == '2':  # 电视剧
+            episode_count = 24  # 电视剧默认估算24集
+        elif item.get('cat_id') == '4':  # 动漫
+            episode_count = 12  # 动漫默认估算12集
+        elif item.get('cat_id') == '3':  # 综艺
+            episode_count = 10  # 综艺默认估算10期
         
         # 确定类型
         type_map = {'1': 'movie', '2': 'tv', '3': 'variety', '4': 'anime'}
@@ -84,30 +91,125 @@ def convert_to_dandanplay_bangumi(bangumi_data, bangumi_id):
     if not bangumi_data:
         return {"errorCode": 404, "success": False, "errorMessage": "番剧不存在"}
     
-    # 生成episodes列表
+    # 生成episodes列表 - 在bangumi详情阶段进行真正的集数获取
     episodes = []
     
-    if bangumi_data.get('cat_id') == '1':  # 电影
-        episodes.append({
-            "lastWatched": None,
-            "episodeTitle": "movie",
-            "seasonId": None,
-            "episodeNumber": "movie",
-            "episodeId": int(f"{bangumi_id}001"),
-            "airDate": f"{bangumi_data.get('year', '2024')}-01-01T00:00:00"
-        })
-    else:  # 电视剧/动漫/综艺
-        series_links = bangumi_data.get('seriesPlaylinks', [])
-        for idx, link in enumerate(series_links, 1):
-            if isinstance(link, dict):
-                episodes.append({
-                    "lastWatched": None,
-                    "episodeTitle": f"第{idx}话",
-                    "seasonId": None,
-                    "episodeNumber": str(idx),
-                    "episodeId": int(f"{bangumi_id}{str(idx).zfill(3)}"),
-                    "airDate": f"{bangumi_data.get('year', '2024')}-01-01T00:00:00"
-                })
+    # 使用playlinks获取真实集数信息（适用于所有类型）
+    playlinks = bangumi_data.get('playlinks', {})
+    
+    if playlinks:
+        if bangumi_data.get('cat_id') == '1':  # 电影类型：为每个平台生成一个episode
+            movie_title = bangumi_data.get('titleTxt', '电影')
+            
+            # 平台名称映射
+            platform_names = {
+                'qq': '腾讯视频',
+                'qiyi': '爱奇艺', 
+                'youku': '优酷',
+                'bilibili1': 'Bilibili',
+                'imgo': '芒果TV',
+                'leshi': '乐视',
+                'm1905': '1905电影网',
+                'sohu': '搜狐视频'
+            }
+            
+            episode_index = 1
+            for platform_key, platform_url in playlinks.items():
+                # 电影类型的playlinks都是简单的字符串格式
+                if isinstance(platform_url, str) and platform_url.startswith('http'):
+                    platform_name = platform_names.get(platform_key, platform_key.upper())
+                    episode_id = int(f"{bangumi_id}{str(episode_index).zfill(3)}")
+                    episodes.append({
+                        "lastWatched": None,
+                        "episodeTitle": f"{movie_title}-{platform_name}",
+                        "seasonId": None,
+                        "episodeNumber": str(episode_index),
+                        "episodeId": episode_id,
+                        "airDate": f"{bangumi_data.get('year', '2024')}-01-01T00:00:00"
+                    })
+                    
+                    # 将URL存储到Redis Hash中
+                    hash_key = f"dandanplay:episodes:{bangumi_id}"
+                    redis_client.hset(hash_key, str(episode_id), platform_url)
+                    redis_client.expire(hash_key, 3600)  # 设置1小时过期
+                    episode_index += 1
+            
+        else:  # 电视剧/综艺/动漫：使用get_episode_url获取集数信息
+            # 提取和清理playlinks中的URL列表
+            platform_url_list = []
+            for key, value in playlinks.items():
+                
+                # 处理不同格式的playlinks数据
+                if isinstance(value, str) and value.startswith('http'):
+                    # 简单的URL字符串
+                    platform_url_list.append(value)
+                elif isinstance(value, list):
+                    # 字典数组格式，提取其中的url字段
+                    for item in value:
+                        if isinstance(item, dict) and 'url' in item:
+                            if item['url'].startswith('http'):
+                                platform_url_list.append(item['url'])
+                elif isinstance(value, dict) and 'url' in value:
+                    # 单个字典格式
+                    if value['url'].startswith('http'):
+                        platform_url_list.append(value['url'])
+            
+            
+            # 调用get_episode_url获取集数信息
+            if platform_url_list:
+                try:
+                    print(f"[DEBUG] bangumi调用get_episode_url，URL列表: {platform_url_list}")
+                    url_dict = get_episode_url(platform_url_list)
+                    print(f"[DEBUG] bangumi get_episode_url返回结果: {url_dict}")
+                    
+                    if url_dict:
+                        # 根据url_dict生成episodes
+                        sorted_keys = sorted(url_dict.keys(), key=lambda x: int(x) if x.isdigit() else 0)
+                        
+                        for ep_key in sorted_keys:
+                            try:
+                                ep_num = int(ep_key)
+                                # 获取该集数对应的真实URL
+                                episode_urls = url_dict[ep_key]
+                                real_url = episode_urls[0] if isinstance(episode_urls, list) and episode_urls else episode_urls
+                                
+                                episode_id = int(f"{bangumi_id}{str(ep_num).zfill(3)}")
+                                episodes.append({
+                                    "lastWatched": None,
+                                    "episodeTitle": f"第{ep_num}话",
+                                    "seasonId": None,
+                                    "episodeNumber": str(ep_num),
+                                    "episodeId": episode_id,
+                                    "airDate": f"{bangumi_data.get('year', '2024')}-01-01T00:00:00"
+                                })
+                                
+                                # 将URL存储到Redis Hash中
+                                hash_key = f"dandanplay:episodes:{bangumi_id}"
+                                redis_client.hset(hash_key, str(episode_id), real_url)
+                                redis_client.expire(hash_key, 3600)  # 设置1小时过期
+                            except ValueError:
+                                # 处理非数字的集数标识（如"彩蛋"）
+                                episode_urls = url_dict[ep_key]
+                                real_url = episode_urls[0] if isinstance(episode_urls, list) and episode_urls else episode_urls
+                                
+                                episode_id = int(f"{bangumi_id}{str(len(episodes)+1).zfill(3)}")
+                                episodes.append({
+                                    "lastWatched": None,
+                                    "episodeTitle": f"{ep_key}",
+                                    "seasonId": None,
+                                    "episodeNumber": ep_key,
+                                    "episodeId": episode_id,
+                                    "airDate": f"{bangumi_data.get('year', '2024')}-01-01T00:00:00"
+                                })
+                                
+                                # 将URL存储到Redis Hash中
+                                hash_key = f"dandanplay:episodes:{bangumi_id}"
+                                redis_client.hset(hash_key, str(episode_id), real_url)
+                                redis_client.expire(hash_key, 3600)  # 设置1小时过期
+                    else:
+                        pass  # get_episode_url返回空结果
+                except Exception:
+                    pass  # 静默处理错误
     
     # 构建完整的bangumi信息
     bangumi_info = {
@@ -161,42 +263,17 @@ def convert_to_dandanplay_bangumi(bangumi_data, bangumi_id):
     return bangumi_info
 
 def get_episode_url_by_id(episode_id):
-    """根据episodeId获取播放链接"""
-    # 解析episodeId: {bangumiId}{episode_number}
+    """根据episodeId获取播放链接 - 直接从Redis Hash中获取URL"""
     episode_id_str = str(episode_id)
     
-    if len(episode_id_str) < 4:
-        return None
-        
-    # 提取bangumiId和集数
-    bangumi_id = episode_id_str[:-3]  # 去掉最后3位
-    episode_num = int(episode_id_str[-3:])  # 最后3位是集数
+    # 遍历所有可能的bangumi Hash来查找URL
+    pattern = "dandanplay:episodes:*"
+    hash_keys = redis_client.keys(pattern)
     
-    # 从Redis获取番剧数据
-    cache_key = f"dandanplay:bangumi:{bangumi_id}"
-    cached_data = redis_client.get(cache_key)
-    
-    if not cached_data:
-        return None
-    
-    try:
-        bangumi_data = json.loads(cached_data)
-    except:
-        return None
-    
-    # 获取对应集数的URL
-    if bangumi_data.get('cat_id') == '1':  # 电影
-        playlinks = bangumi_data.get('playlinks', {})
-        if playlinks:
-            return list(playlinks.values())[0]  # 返回第一个播放链接
-    else:  # 电视剧等
-        series_links = bangumi_data.get('seriesPlaylinks', [])
-        if episode_num <= len(series_links):
-            link_data = series_links[episode_num - 1]
-            if isinstance(link_data, dict):
-                return link_data.get('url')
-            else:
-                return link_data  # 直接是URL字符串
+    for hash_key in hash_keys:
+        url = redis_client.hget(hash_key, episode_id_str)
+        if url:
+            return url
     
     return None
 
@@ -241,6 +318,7 @@ def get_bangumi(bangumi_id):
     
     # 转换为DanDanPlay格式
     result = convert_to_dandanplay_bangumi(bangumi_data, bangumi_id)
+    
     return jsonify(result)
 
 @dandanplay_app.route('/api/v2/comment/<int:episode_id>')
@@ -251,6 +329,7 @@ def get_comments(episode_id):
     
     # 根据episodeId获取播放URL
     play_url = get_episode_url_by_id(episode_id)
+    
     if not play_url:
         return jsonify({
             "count": 0,
