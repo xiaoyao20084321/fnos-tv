@@ -14,7 +14,7 @@ class FnOsWsBase:
     def __init__(self, type='main'):
         agreement ='wss' if  fnos_url.startswith("https://") else 'ws'
         self.ws = websocket.WebSocketApp(
-            f'{agreement}://{fnos_url.split('//')[1]}/websocket?type={type}',
+            f'{agreement}://{fnos_url.split("//")[1]}/websocket?type={type}',
             on_open=self.on_open,
             on_message=self.on_message,
             on_error=self.on_error,

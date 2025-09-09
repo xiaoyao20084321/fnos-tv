@@ -31,7 +31,7 @@ class GetDanmuTencent(GetDanmuBase):
         if vid:
             vid = vid[-1]
         if not vid:
-            vid = re.search("/([a-zA-Z0-9]+)\.html", url)
+            vid = re.search(r"/([a-zA-Z0-9]+)\.html", url)
             if vid:
                 vid = vid.group(1)
         if not vid:
@@ -73,7 +73,7 @@ class GetDanmuTencent(GetDanmuBase):
         return self.data_list
 
     def getImg(self, url):
-        vid = re.search("/([a-zA-Z0-9]+)\.html", url)
+        vid = re.search(r"/([a-zA-Z0-9]+)\.html", url)
         if vid:
             vid = vid.group(1)
         if not vid:
@@ -118,7 +118,7 @@ class GetDanmuTencent(GetDanmuBase):
         if vid:
             vid = vid[-1]
         if not vid:
-            vid = re.search("/([a-zA-Z0-9]+)\.html", url)
+            vid = re.search(r"/([a-zA-Z0-9]+)\.html", url)
             if vid:
                 vid = vid.group(1)
         cid = re.findall('"cid":"(.*?)"', res.text)[0]
