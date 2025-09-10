@@ -9,6 +9,7 @@ import sys
 import time
 import zipfile
 from itertools import combinations
+from typing import Dict, List
 from urllib import parse
 from urllib.parse import parse_qsl, urlencode, unquote
 from urllib.parse import urlparse
@@ -48,7 +49,7 @@ def get_platform_link(douban_id):
     res = request_data("GET", f'https://movie.douban.com/subject/{douban_id}/', headers={
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     })
-    urls = re.findall('https://www.douban.com/link2/\?url=(.*?)",.+ep:.+"(.*?)"', res.text)
+    urls = re.findall(r'https://www\.douban\.com/link2/\?url=(.*?)",.+ep:.+"(.*?)"', res.text)
     url_dict = {}
     for url in urls:
         if url[1] in url_dict.keys():
@@ -98,7 +99,7 @@ def douban_select(name: str, tv_num: str, season: bool):
             continue
         d_tv_num = re.findall("第(.*?)季", data.get('title', ""))
         if not d_tv_num:
-            d_tv_num = re.findall(f'{name}(\d+)', data.get('title', ""))
+            d_tv_num = re.findall(rf'{name}(\d+)', data.get('title', ""))
         if not d_tv_num:
             roman_num = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"]
             roman_num_str = '|'.join(roman_num)
@@ -160,7 +161,7 @@ def select_by_360(name: str, tv_num: str, season):
         title = item.get('titleTxt', '')
         d_tv_num = re.findall("第(.*?)季", title)
         if not d_tv_num:
-            d_tv_num = re.findall(f'{re.escape(name)}(\d+)', title)
+            d_tv_num = re.findall(rf'{re.escape(name)}(\d+)', title)
         if not d_tv_num:
             roman_num = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"]
             roman_num_str = '|'.join(roman_num)
@@ -489,13 +490,43 @@ def generate_signature(o: dict, s: str = '') -> str:
         return ''
 
 
-def resolve_url_query(url: str) -> dict[str, list[str]]:
+def resolve_url_query(url: str) -> Dict[str, List[str]]:
     _url = urlparse(url)
     parad = parse.parse_qs(_url.query)
     return parad
 
 
 def run_alembic_upgrade():
-    # 确保alembic.ini在当前目录
-    alembic_ini = os.path.join(os.path.dirname(__file__), 'alembic.ini')
-    subprocess.run(["alembic", "-c", alembic_ini, "upgrade", "head"], check=True)
+    """
+    执行 Alembic 数据库迁移
+    """
+    try:
+        # 确保 alembic.ini在当前目录
+        alembic_ini = os.path.join(os.path.dirname(__file__), 'alembic.ini')
+        
+        # 确保数据目录存在
+        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+            print(f"Created data directory: {data_dir}")
+        
+        # 执行迁移
+        result = subprocess.run(
+            ["alembic", "-c", alembic_ini, "upgrade", "head"], 
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        print(f"Alembic upgrade output: {result.stdout}")
+        
+    except subprocess.CalledProcessError as e:
+        print(f"Alembic upgrade failed: {e}")
+        if e.stderr:
+            print(f"Error output: {e.stderr}")
+        raise
+    except FileNotFoundError:
+        print("Alembic command not found")
+        raise
+    except Exception as e:
+        print(f"Unexpected error during alembic upgrade: {e}")
+        raise

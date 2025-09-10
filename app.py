@@ -24,10 +24,15 @@ if not os.path.exists('./data/log'):
     os.makedirs('./data/log')
 
 
-# 创建表
-Base.metadata.create_all(engine)
 # 执行数据库迁移操作
-run_alembic_upgrade()
+try:
+    run_alembic_upgrade()
+    print("Database migration completed successfully")
+except Exception as e:
+    print(f"Database migration failed, creating tables directly: {e}")
+    # 如果迁移失败，则尝试直接创建表
+    Base.metadata.create_all(engine)
+    print("Tables created directly using SQLAlchemy")
 
 if __name__ == '__main__':
     debug_mode = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'

@@ -36,7 +36,7 @@ class GetDanmuBilibili(GetDanmuBase):
 
     def get_link(self, url) -> List[str]:
         if url.find("bangumi/") != -1 and url.find("ep") != -1:
-            epid = re.findall("ep(\d+)", url)[0]
+            epid = re.findall(r"ep(\d+)", url)[0]
             params = {
                 "ep_id": epid
             }
@@ -116,7 +116,7 @@ class GetDanmuBilibili(GetDanmuBase):
     def get_episode_url(self, url):
         url_dict = {}
         if url.find("bangumi/") != -1 and url.find("ep") != -1:
-            epid = re.findall("ep(\d+)", url)[0]
+            epid = re.findall(r"ep(\d+)", url)[0]
             params = {
                 "ep_id": epid
             }
