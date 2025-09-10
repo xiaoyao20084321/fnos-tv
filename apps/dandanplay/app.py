@@ -304,7 +304,22 @@ def search_anime():
 @dandanplay_app.route('/api/v2/bangumi/<bangumi_id>')
 def get_bangumi(bangumi_id):
     """获取番剧详情和剧集列表"""
-    # 从Redis获取缓存数据
+    # 检查episodes Hash是否已存在（避免并发重复处理）
+    episodes_hash_key = f"dandanplay:episodes:{bangumi_id}"
+    if redis_client.exists(episodes_hash_key):
+        # 已经处理过，从原始缓存重新构建结果
+        cache_key = f"dandanplay:bangumi:{bangumi_id}"
+        cached_data = redis_client.get(cache_key)
+        
+        if cached_data:
+            try:
+                bangumi_data = json.loads(cached_data)
+                result = convert_to_dandanplay_bangumi(bangumi_data, bangumi_id)
+                return jsonify(result)
+            except:
+                pass
+    
+    # 第一次处理或缓存失效，正常处理流程
     cache_key = f"dandanplay:bangumi:{bangumi_id}"
     cached_data = redis_client.get(cache_key)
     
@@ -316,7 +331,7 @@ def get_bangumi(bangumi_id):
     except:
         return jsonify({"errorCode": 500, "success": False, "errorMessage": "数据解析失败"})
     
-    # 转换为DanDanPlay格式
+    # 转换为DanDanPlay格式（会处理playlinks并存储到Redis Hash）
     result = convert_to_dandanplay_bangumi(bangumi_data, bangumi_id)
     
     return jsonify(result)

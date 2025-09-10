@@ -116,14 +116,33 @@ class GetDanmuIqiyi(GetDanmuBase):
                 res = _req.request("GET", url,
                                    headers={"Accept-Encoding": "gzip,deflate,compress"}, impersonate="chrome124")
                 res.encoding = "UTF-8"
-                js_url = re.findall(r'<script src="(.*?)" referrerpolicy="no-referrer-when-downgrade">', res.text)[0]
+                
+                # 更新正则表达式以匹配新的页面结构，包含defer属性和HTML实体
+                js_url_matches = re.findall(r'<script[^>]*src="([^"]*lwplay/accelerator\.js[^"]*)"[^>]*referrerpolicy="no-referrer-when-downgrade"[^>]*>', res.text)
+                if not js_url_matches:
+                    # 备用方案：直接匹配包含accelerator.js的src属性
+                    js_url_matches = re.findall(r'src="([^"]*accelerator\.js[^"]*)"', res.text)
+                if not js_url_matches:
+                    return {}
+                js_url = js_url_matches[0].replace('&amp;', '&')  # 将HTML实体转换为正常字符
+                
                 res = _req.request('GET', f'https:{js_url}', headers={'referer': url})
-                tv_id = re.findall('"tvId":([0-9]+)', res.text)[0]
+                tv_id_matches = re.findall('"tvId":([0-9]+)', res.text)
+                if not tv_id_matches:
+                    return {}
+                tv_id = tv_id_matches[0]
+                
             params = f'entity_id={tv_id}&src=pca_tvg&timestamp={int(time.time())}&secret_key=howcuteitis'
-            url = f'https://mesh.if.iqiyi.com/tvg/v2/lw/base_info?{params}&sign={get_md5(params).upper()}'
-            res = _req.request('GET', url, headers={'referer': url})
+            api_url = f'https://mesh.if.iqiyi.com/tvg/v2/lw/base_info?{params}&sign={get_md5(params).upper()}'
+            res = _req.request('GET', api_url, headers={'referer': url})
+            
+            try:
+                api_data = res.json()
+            except Exception as json_e:
+                return {}
+            
             jsonpath_expr = parse('$..bk_title')
-            matches = [match for match in jsonpath_expr.find(res.json())]
+            matches = [match for match in jsonpath_expr.find(api_data)]
             result_objs = [match.context.value for match in matches if match.value == "选集"]
             url_dict = {}
             for result_obj in result_objs:
@@ -135,7 +154,9 @@ class GetDanmuIqiyi(GetDanmuBase):
                 for k in list(d.keys()):
                     for item in d[k]:
                         if item.get('page_url'):
-                            url_dict[f"{item.get('album_order')}"] = item.get('page_url')
+                            album_order = item.get('album_order')
+                            page_url = item.get('page_url')
+                            url_dict[f"{album_order}"] = page_url
 
             return url_dict
         except Exception as e:
