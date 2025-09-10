@@ -6,9 +6,14 @@ from flask import Blueprint, request, jsonify
 from Fuction import request_data
 from apps.danmu.app import download_barrage, get_episode_url
 from core.danmu.danmuType import RetDanMuType
+from Config import video_source_type, api_base_url, api_key
+from apps.dandanplay.video_source import VideoSourceFactory
+from apps.dandanplay.data_converter import DataConverter
 
 dandanplay_app = Blueprint('dandanplay', __name__, url_prefix='/dandanplay')
 
+# 创建视频源实例
+video_source = VideoSourceFactory.create_source(video_source_type, api_base_url, api_key)
 
 # Redis配置 - 全内存模式
 redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
@@ -21,6 +26,7 @@ try:
 except Exception as e:
     print(f"Redis配置失败: {e}")
 
+# 保留原有的360搜索API函数（向后兼容）
 def search_360_api(keyword):
     """调用360搜索API"""
     url = f"https://api.so.360kan.com/index?kw={keyword}&from&pageno=1&v_ap=1&tab=all"
@@ -32,59 +38,8 @@ def search_360_api(keyword):
         return None
 
 def convert_to_dandanplay_anime_list(search_data):
-    """将360搜索结果转换为DanDanPlay search/anime格式"""
-    if not search_data or 'data' not in search_data:
-        return {"animes": [], "errorCode": 0, "success": True, "errorMessage": ""}
-    
-    animes = []
-    rows = search_data.get('data', {}).get('longData', {}).get('rows', [])
-    
-    for item in rows:
-        # 搜索阶段：使用简单的集数估算，不调用复杂的get_episode_url
-        episode_count = 1  # 默认1集
-        
-        # 优先从coverInfo获取集数信息（快速且可靠）
-        if item.get('coverInfo', {}).get('txt'):
-            cover_text = item.get('coverInfo', {}).get('txt', '')
-            if '集' in cover_text:
-                try:
-                    episode_count = int(cover_text.replace('全', '').replace('更新至', '').replace('集', ''))
-                except:
-                    episode_count = 1
-        # 如果coverInfo没有信息，对于电视剧类型给一个合理的估算
-        elif item.get('cat_id') == '2':  # 电视剧
-            episode_count = 24  # 电视剧默认估算24集
-        elif item.get('cat_id') == '4':  # 动漫
-            episode_count = 12  # 动漫默认估算12集
-        elif item.get('cat_id') == '3':  # 综艺
-            episode_count = 10  # 综艺默认估算10期
-        
-        # 确定类型
-        type_map = {'1': 'movie', '2': 'tv', '3': 'variety', '4': 'anime'}
-        anime_type = type_map.get(item.get('cat_id', '1'), 'tv')
-        type_desc_map = {'1': '电影', '2': '电视剧', '3': '综艺', '4': '动漫'}
-        type_description = type_desc_map.get(item.get('cat_id', '1'), '未知')
-        
-        anime_info = {
-            "animeTitle": item.get('titleTxt', ''),
-            "rating": float(item.get('score', 0)) if item.get('score') else 0.0,
-            "startDate": f"{item.get('year', '2024')}-01-01T00:00:00",
-            "isFavorited": False,
-            "imageUrl": item.get('cover', ''),
-            "bangumiId": item.get('id', ''),
-            "typeDescription": type_description,
-            "type": anime_type,
-            "episodeCount": episode_count,
-            "animeId": int(item.get('id', 0))
-        }
-        animes.append(anime_info)
-    
-    return {
-        "animes": animes,
-        "errorCode": 0,
-        "success": True,
-        "errorMessage": ""
-    }
+    """将360搜索结果转换为DanDanPlay search/anime格式（使用DataConverter）"""
+    return DataConverter.convert_360_search_result(search_data)
 
 def convert_to_dandanplay_bangumi(bangumi_data, bangumi_id):
     """将360搜索单个结果转换为DanDanPlay bangumi格式"""
@@ -262,6 +217,23 @@ def convert_to_dandanplay_bangumi(bangumi_data, bangumi_id):
     
     return bangumi_info
 
+def _store_api_episodes_to_redis(episodes_data, bangumi_id):
+    """存储API剧集URL到Redis Hash"""
+    hash_key = f"dandanplay:episodes:{bangumi_id}"
+    
+    for episode in episodes_data:
+        episode_index = episode.get('episodeIndex', 1)
+        # 使用bangumi_id的hash + episode_index确保全局唯一，与data_converter保持一致
+        bangumi_hash = abs(hash(bangumi_id)) % 100000
+        episode_id = int(f"{bangumi_hash}{str(episode_index).zfill(3)}")
+        episode_url = episode.get('url', '')
+        
+        if episode_url:
+            redis_client.hset(hash_key, str(episode_id), episode_url)
+    
+    redis_client.expire(hash_key, 3600)  # 设置1小时过期
+
+
 def get_episode_url_by_id(episode_id):
     """根据episodeId获取播放链接 - 直接从Redis Hash中获取URL"""
     episode_id_str = str(episode_id)
@@ -284,21 +256,45 @@ def search_anime():
     if not keyword:
         return jsonify({"animes": [], "errorCode": 400, "success": False, "errorMessage": "缺少keyword参数"})
     
-    # 调用360搜索API
-    search_result = search_360_api(keyword)
+    # 使用配置的视频源进行搜索
+    search_result = video_source.search_anime(keyword)
     if not search_result:
         return jsonify({"animes": [], "errorCode": 500, "success": False, "errorMessage": "搜索失败"})
     
-    # 缓存搜索结果到Redis
-    rows = search_result.get('data', {}).get('longData', {}).get('rows', [])
-    for item in rows:
-        bangumi_id = item.get('id')
-        if bangumi_id:
-            cache_key = f"dandanplay:bangumi:{bangumi_id}"
-            redis_client.setex(cache_key, 3600, json.dumps(item))  # 缓存1小时
+    # 根据数据源类型进行不同的缓存和转换处理
+    if video_source_type == "misaka-danmu-server":
+        # 自定义API源：缓存搜索结果和转换
+        cache_key = f"dandanplay:api_search:{search_result.get('searchId', '')}"
+        redis_client.setex(cache_key, 3600, json.dumps(search_result))  # 缓存1小时
+        
+        # 同时缓存每个结果项的详细信息
+        results = search_result.get('results', [])
+        for item in results:
+            bangumi_id = f"{search_result.get('searchId', '')}_{item.get('result_index', 0)}"
+            bangumi_cache_key = f"dandanplay:bangumi:{bangumi_id}"
+            bangumi_info = {
+                "searchId": search_result.get('searchId', ''),
+                "resultIndex": item.get('result_index', 0),
+                "title": item.get('title', ''),
+                "type": item.get('type', ''),
+                "year": item.get('year', 2024),
+                "imageUrl": item.get('imageUrl', ''),
+                "episodeCount": item.get('episodeCount', 0)
+            }
+            redis_client.setex(bangumi_cache_key, 3600, json.dumps(bangumi_info))
+        
+        result = DataConverter.convert_api_search_result(search_result)
+    else:
+        # 360源：使用原有逻辑
+        rows = search_result.get('data', {}).get('longData', {}).get('rows', [])
+        for item in rows:
+            bangumi_id = item.get('id')
+            if bangumi_id:
+                cache_key = f"dandanplay:bangumi:{bangumi_id}"
+                redis_client.setex(cache_key, 3600, json.dumps(item))  # 缓存1小时
+        
+        result = DataConverter.convert_360_search_result(search_result)
     
-    # 转换为DanDanPlay格式
-    result = convert_to_dandanplay_anime_list(search_result)
     return jsonify(result)
 
 @dandanplay_app.route('/api/v2/bangumi/<bangumi_id>')
@@ -314,10 +310,23 @@ def get_bangumi(bangumi_id):
         if cached_data:
             try:
                 bangumi_data = json.loads(cached_data)
-                result = convert_to_dandanplay_bangumi(bangumi_data, bangumi_id)
-                return jsonify(result)
-            except:
-                pass
+                if video_source_type == "misaka-danmu-server":
+                    # API源：重新获取剧集数据并转换
+                    search_id = bangumi_data.get('searchId')
+                    result_index = bangumi_data.get('resultIndex')
+                    if search_id and result_index is not None:
+                        episodes_data = video_source.get_bangumi_detail(bangumi_id, search_id, result_index)
+                        if episodes_data:
+                            result = DataConverter.convert_api_bangumi_detail(episodes_data, bangumi_data, bangumi_id)
+                            # 存储剧集URL到Redis Hash
+                            _store_api_episodes_to_redis(episodes_data, bangumi_id)
+                            return jsonify(result)
+                else:
+                    # 360源：使用原有逻辑
+                    result = convert_to_dandanplay_bangumi(bangumi_data, bangumi_id)
+                    return jsonify(result)
+            except Exception as e:
+                print(f"重新构建结果失败: {e}")
     
     # 第一次处理或缓存失效，正常处理流程
     cache_key = f"dandanplay:bangumi:{bangumi_id}"
@@ -331,8 +340,27 @@ def get_bangumi(bangumi_id):
     except:
         return jsonify({"errorCode": 500, "success": False, "errorMessage": "数据解析失败"})
     
-    # 转换为DanDanPlay格式（会处理playlinks并存储到Redis Hash）
-    result = convert_to_dandanplay_bangumi(bangumi_data, bangumi_id)
+    # 根据数据源类型进行不同处理
+    if video_source_type == "misaka-danmu-server":
+        # API源：获取剧集详情
+        search_id = bangumi_data.get('searchId')
+        result_index = bangumi_data.get('resultIndex')
+        
+        if not search_id or result_index is None:
+            return jsonify({"errorCode": 400, "success": False, "errorMessage": "缺少必要参数"})
+        
+        episodes_data = video_source.get_bangumi_detail(bangumi_id, search_id, result_index)
+        if not episodes_data:
+            return jsonify({"errorCode": 500, "success": False, "errorMessage": "获取剧集信息失败"})
+        
+        # 转换为DanDanPlay格式
+        result = DataConverter.convert_api_bangumi_detail(episodes_data, bangumi_data, bangumi_id)
+        
+        # 存储剧集URL到Redis Hash
+        _store_api_episodes_to_redis(episodes_data, bangumi_id)
+    else:
+        # 360源：使用原有逻辑
+        result = convert_to_dandanplay_bangumi(bangumi_data, bangumi_id)
     
     return jsonify(result)
 
@@ -383,7 +411,7 @@ def get_comments(episode_id):
             # 添加来源信息
             source = item_dict.get("source", "unknown")
             if not source or source == "unknown":
-                source = "360kan"  # 默认来源
+                source = video_source_type  # 使用当前配置的数据源类型
             
             # 构建完整的p参数: 时间,模式,颜色,[来源]
             p_param = f"{time_str},{mode},{color},[{source}]"
