@@ -1,25 +1,27 @@
 import importlib
 import pkgutil
-import re
-from typing import List
-
-from loguru import logger
 from concurrent.futures import ThreadPoolExecutor
 
+import tldextract
 from flask import Blueprint
 from flask import request
+from loguru import logger
 
-from Fuction import get_platform_link, douban_select, douban_get_first_url, resolve_url_query, select_by_360
+import core.danmu as danmu_base
+import core.videoSearch as videoSearch
 from core.danmu.base import GetDanmuBase
 from core.danmu.danmuType import RetDanMuType
-import core.danmu as danmu_base
-
 from core.db.base import CRUDBase
 from core.db.model.videoConfigDb import videoConfigUrl
+from core.videoSearch.Base import VideoSearchBase
 
 danmu = Blueprint('alist', __name__, url_prefix='/danmu')
-# 遍历 your_package 中所有子模块
+# 遍历 danmu_base 中所有子模块
 for finder, mod_name, ispkg in pkgutil.walk_packages(danmu_base.__path__, danmu_base.__name__ + "."):
+    importlib.import_module(mod_name)
+
+# 遍历 videoSearch 中所有子模块
+for finder, mod_name, ispkg in pkgutil.walk_packages(videoSearch.__path__, videoSearch.__name__ + "."):
     importlib.import_module(mod_name)
 
 
@@ -30,6 +32,18 @@ def download_barrage(_url):
             d = c().get(_url)
             if d:
                 return d
+
+
+def searchVideoData(name: str, tv_num: str, season: bool):
+    url_list = []
+    for c in VideoSearchBase.__subclasses__():
+        try:
+            d = c().get(name, tv_num, season)
+            if d:
+                url_list += d
+        except Exception as e:
+            pass
+    return list({tldextract.extract(u).domain: u for u in url_list}.values())
 
 
 def get_episode_url(platform_url_list):
@@ -57,21 +71,6 @@ def fetch_emoji(url):
         return {"url": url, "data": []}
 
 
-def other2http(platform_url_list: List[str]):
-    ret_list = []
-    for url in platform_url_list:
-        if not url.startswith("http"):
-            agreement = re.findall("^(.*?):", url)
-            query = resolve_url_query(url)
-            match agreement:
-                case ['txvideo']:
-                    url = f'https://v.qq.com/x/cover/{query.get("cid")[0]}/{query.get("vid")[0]}.html'
-                case ["iqiyi"]:
-                    url = f'http://www.iqiyi.com?tvid={query.get("tvid")[0]}'
-        ret_list.append(url)
-    return ret_list
-
-
 def fetch_danmu(url, episode_key):
     """获取单个URL的弹幕数据"""
     try:
@@ -88,6 +87,8 @@ def get_url_dict(douban_id, title=None, season_number=None, episode_number=None,
     if episode_number:
         episode_number = int(episode_number)
     url_dict = {}
+    platform_url_list = []
+
     db = CRUDBase(videoConfigUrl)
     # 数据库匹配数据
     if guid is not None and episode_number:
@@ -97,33 +98,13 @@ def get_url_dict(douban_id, title=None, season_number=None, episode_number=None,
                 url_dict[_episode_number] = []
             url_dict[_episode_number].append(item.url)
     if parent_guid is not None and len(url_dict.keys()) == 0:
-        platform_url_list = []
         for item in db.filter(parent_guid=parent_guid):
             platform_url_list.append(item.url)
-        if len(platform_url_list) != 0:
-            url_dict = get_episode_url(platform_url_list)
 
-    # 360影视获取链接
-    if len(url_dict.keys()) == 0:
-        _360data = select_by_360(title, season_number, season)
-        platform_url_list = []
-        for key, value in _360data.get("playlinks", {}).items():
-            platform_url_list.append(value)
-        url_dict = get_episode_url(platform_url_list)
-        
-    # 豆瓣获取链接
-    if len(url_dict.keys()) == 0:
-        if douban_id is None and (title is not None) and season_number is not None or (
-                douban_id and season_number and season_number != '1'):  # 没有豆瓣ID，需要程序匹配
-            douban_data = douban_select(title, season_number, season)
-            if douban_data:
-                douban_id = douban_data['target_id']
-        # 处理豆瓣的特殊链接，有些如iqiyi:\/\/mobile\/player?aid=225041201&tvid=9749815600&ftype=27&subtype=333转为http协议
-        platform_url_list = other2http(douban_get_first_url(douban_id))
-        url_dict = get_episode_url(platform_url_list)
-
-    if len(url_dict.keys()) == 0:
-        url_dict = get_platform_link(douban_id)
+    # 三方数据搜索
+    if len(platform_url_list) == 0:
+        platform_url_list = searchVideoData(title, season_number, season)
+    url_dict = get_episode_url(platform_url_list)
 
     if str(episode_number) in url_dict or episode_title in url_dict:
         url_list = url_dict.get(str(episode_number), url_dict.get(episode_title, []))
