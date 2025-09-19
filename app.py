@@ -7,7 +7,6 @@ from Fuction import run_alembic_upgrade
 from apps.api import api_app
 from apps.danmu.app import danmu
 from apps.fnos.app import fnos_app
-from apps.dandanplay.app import dandanplay_app
 from core.db.db import engine
 from core.db.model import Base
 from core.db.model import videoConfigDb, recordDb
@@ -18,7 +17,6 @@ app.logger.setLevel(logging.INFO)
 app.register_blueprint(danmu, url_prefix='/danmu')
 app.register_blueprint(fnos_app, url_prefix='/fnos')
 app.register_blueprint(api_app, url_prefix='/api')
-app.register_blueprint(dandanplay_app, url_prefix='')
 
 if not os.path.exists('./data/log'):
     os.makedirs('./data/log')

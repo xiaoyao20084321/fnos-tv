@@ -5,8 +5,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       nginx \
       supervisor \
-      gettext-base \
-      redis-server && \
+      gettext-base && \
     rm -rf /var/lib/apt/lists/*
 
 # 创建工作目录
