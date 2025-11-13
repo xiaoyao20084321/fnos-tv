@@ -8,6 +8,7 @@ from curl_cffi import requests
 from tqdm import tqdm
 
 from core.danmu.base import GetDanmuBase
+from core.danmu.danmuType import EpisodeDataDto
 
 
 class GetDanmuSoHu(GetDanmuBase):
@@ -66,7 +67,7 @@ class GetDanmuSoHu(GetDanmuBase):
 
         return self.data_list
 
-    def get_episode_url(self, url):
+    def get_episode_url(self, url) -> List[EpisodeDataDto]:
         _res = self.req.get(url)
         vid = re.findall('vid="(.*?)";', _res.text)[0]
         play_list_id = re.findall('playlistId="(.*?)";', _res.text)[0]
@@ -77,7 +78,15 @@ class GetDanmuSoHu(GetDanmuBase):
         res = self.req.get("https://pl.hd.sohu.com/videolist", params)
         res.encoding = res.charset_encoding
         res_data = json.loads(res.text.encode("utf-8"))
-        url_dict = {}
+        data_list = []
         for item in res_data.get('videos', []):
-            url_dict[item.get('order')] = item.get('pageUrl')
-        return url_dict
+            data = EpisodeDataDto(
+                episodeTitle=item.get('subName'),
+                episodeNumber=item.get('order'),
+                url=item.get('pageUrl')
+            )
+            data_list.append(data)
+        return data_list
+    
+if __name__ == '__main__':
+    GetDanmuSoHu().get_episode_url("https://tv.sohu.com/v/MjAyNTEwMTkvbjYyMDEwNzk4NC5zaHRtbA==.html")

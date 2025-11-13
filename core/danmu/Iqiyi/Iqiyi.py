@@ -2,6 +2,7 @@ import concurrent.futures
 import concurrent.futures
 import re
 import time
+from datetime import datetime
 from functools import partial
 from typing import List
 from urllib import parse
@@ -14,6 +15,7 @@ from tqdm import tqdm
 
 import core.danmu.Iqiyi.Iqiyidm_pb2 as Iqiyidm_pb2
 from Fuction import get_md5, resolve_url_query
+from core.danmu.danmuType import EpisodeDataDto
 from core.danmu.base import GetDanmuBase
 
 
@@ -106,7 +108,7 @@ class GetDanmuIqiyi(GetDanmuBase):
             )
         return emoji_data_list
 
-    def get_episode_url(self, url):
+    def get_episode_url(self, url) -> List[EpisodeDataDto]:
         try:
             query = resolve_url_query(url)
             _req = self._req
@@ -129,11 +131,11 @@ class GetDanmuIqiyi(GetDanmuBase):
             jsonpath_expr = parse('$..bk_title')
             matches = [match for match in jsonpath_expr.find(res.json())]
             result_objs = [match.context.value for match in matches if match.value == "选集"]
-            url_dict = {}
+            data_list = []
             for result_obj in result_objs:
                 datas = result_obj.get('data', {}).get('data', [])
                 for data in datas:
-                    if data.get('entity_id') ==  res.json().get('data', {}).get('base_data', {}).get('_id'):
+                    if data.get('entity_id') == res.json().get('data', {}).get('base_data', {}).get('_id'):
                         d = data.get('videos')
                         if isinstance(d, str):
                             _res = _req.get(d)
@@ -141,9 +143,19 @@ class GetDanmuIqiyi(GetDanmuBase):
                         d = d.get('feature_paged', {})
                         for k in list(d.keys()):
                             for item in d[k]:
-                                if item.get('page_url'):
-                                    url_dict[f"{item.get('album_order')}"] = item.get('page_url')
+                                if item.get('page_url') and item.get('content_type') == 1:
+                                    _data = EpisodeDataDto(
+                                        url=item.get('page_url'),
+                                        episodeTitle=item.get('subtitle'),
+                                        episodeNumber=item.get('album_order'),
+                                        airDate=datetime.fromtimestamp(int(item.get('last_update_time', '')) / 1000)
+                                    )
+                                    data_list.append(_data)
 
-            return url_dict
+            return data_list
         except Exception as e:
-            return {}
+            return []
+
+
+if __name__ == '__main__':
+    GetDanmuIqiyi().get_episode_url("https://www.iqiyi.com/v_16ne2x4z6zc.html")

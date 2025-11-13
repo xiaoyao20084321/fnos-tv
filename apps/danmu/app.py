@@ -38,9 +38,11 @@ def searchVideoData(name: str, tv_num: str, season: bool):
     url_list = []
     for c in VideoSearchBase.__subclasses__():
         try:
-            d = c().get(name, tv_num, season)
+            d = c().get(name)
             if d:
-                url_list += d
+                for v in d:
+                    if v.title == name and v.season_number == int(tv_num):
+                        url_list += v.url
         except Exception as e:
             pass
     return list({tldextract.extract(u).domain: u for u in url_list}.values())
@@ -52,10 +54,10 @@ def get_episode_url(platform_url_list):
         for c in GetDanmuBase.__subclasses__():
             if c.domain in platform_url:
                 d = c().get_episode_url(platform_url)
-                for k, v in d.items():
-                    if k not in url_dict.keys():
-                        url_dict[str(k)] = []
-                    url_dict[str(k)].append(v)
+                for v in d:
+                    if v.episodeNumber not in url_dict.keys():
+                        url_dict[v.episodeNumber] = []
+                    url_dict[v.episodeNumber].append(v.url)
     return url_dict
 
 

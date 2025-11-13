@@ -6,7 +6,7 @@ from typing import List
 class VideoDataDto:
     title: str
     season_number: int
-    episode_number: int
-    episode_title: str
     source: str  # 来源
-    url: str
+    url: List[str]
+    img_url: str
+    episodeCount: int

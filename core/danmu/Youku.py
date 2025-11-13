@@ -11,6 +11,7 @@ from curl_cffi import requests
 from tqdm import tqdm
 
 from core.danmu.base import GetDanmuBase
+from core.danmu.danmuType import EpisodeDataDto
 
 
 class GetDanmuYouku(GetDanmuBase):
@@ -241,10 +242,9 @@ class GetDanmuYouku(GetDanmuBase):
             )
         return emoji_data_list
 
-    def get_episode_url(self, url: str) -> dict[str, str]:
+    def get_episode_url(self, url: str) -> List[EpisodeDataDto]:
         res = self.request_data(self.req, "GET", url)
-        selector = parsel.Selector(res.text)
-        url_dict = {}
+        data_list = []
         data = re.search(r'window\.__INITIAL_DATA__\s*=\s*({[\s\S]*?});', res.text).group(1)
         json_data = json.loads(data)
         for item in json_data.get('moduleList', [{}])[0].get("components", []):
@@ -253,5 +253,10 @@ class GetDanmuYouku(GetDanmuBase):
                     title = d.get('title')
                     rank = d.get('stage')
                     url = f'https://v.youku.com/v_show/id_{d.get("action_value")}.html'
-                    url_dict[rank] = url
-        return url_dict
+                    data = EpisodeDataDto(
+                        episodeTitle=title,
+                        episodeNumber=rank,
+                        url=url
+                    )
+                    data_list.append(data)
+        return data_list

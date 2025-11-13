@@ -7,9 +7,7 @@ import cn2an
 
 from Fuction import request_data, resolve_url_query
 from core.videoSearch.Base import VideoSearchBase
-
-
-
+from core.videoSearch.videoSearchType import VideoDataDto
 
 
 def other2http(platform_url_list: List[str]):
@@ -32,9 +30,8 @@ class DoubanSearch(VideoSearchBase):
         super().__init__()
 
     @staticmethod
-    def douban_select(name: str, tv_num: str, season: bool):
+    def douban_select(name: str):
         url = "https://frodo.douban.com/api/v2/search/weixin"
-
         params = {
             'q': name,
             'start': "0",
@@ -54,6 +51,7 @@ class DoubanSearch(VideoSearchBase):
         }
         res = request_data("GET", url, params=params, headers=headers)
         json_data = res.json().get('items', [])
+        id_list = []
 
         for i in json_data:
             data = i.get('target', {})
@@ -78,8 +76,8 @@ class DoubanSearch(VideoSearchBase):
 
             except:
                 pass
-            if name.split(" ")[0] in data.get('title', "") and (tv_num == name or d_tv_num == tv_num):
-                return i
+            id_list.append(i.get('target_id'))
+        return id_list
 
     @staticmethod
     def douban_get_first_url(target_id):
@@ -95,22 +93,59 @@ class DoubanSearch(VideoSearchBase):
             'accept-language': "zh-CN,zh;q=0.9"
         }
         res = request_data("GET", url, headers=headers)
-        json_data = res.json().get('vendors', [])
+        res_json = res.json()
+        json_data = res_json.get('vendors', [])
         url_list = []
+        title = res_json.get('title', '')
+        d_tv_num = re.findall("第(.*?)季", title)
+        if not d_tv_num:
+            roman_num = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"]
+            roman_num_str = '|'.join(roman_num)
+            _d_tv_num = re.findall(f'{re.escape(title)}([{roman_num_str}]+)', title)
+            if _d_tv_num:
+                d_tv_num = [roman_num.index(_d_tv_num[0])]
+        if not d_tv_num:
+            d_tv_num = re.findall(rf'(\d+)', title)
+        if not d_tv_num:
+            d_tv_num = "一"
+        else:
+            d_tv_num = d_tv_num[0]
+        try:
+            d_tv_num = cn2an.an2cn(int(d_tv_num))
+
+        except:
+            pass
+        episodes_count = res_json.get('episodes_count', 0)
+        img_url = res_json.get('pic', {}).get('large', '')
+        if len(json_data) == 0:
+            return None
         for item in json_data:
             if item.get('url') and 'douban' not in item.get('url').split('?')[0]:
-                url_list.append(item.get('url'))
+                url_list += other2http([item.get('url')])
                 continue
             if item.get('uri'):
-                url_list.append(item.get('uri'))
-        return url_list
+                url_list += other2http([item.get('uri')])
 
-    def main(self, name: str, tv_num: str, season) -> List[str] | None:
-        douban_data = self.douban_select(name, tv_num, season)
-        if not douban_data:
-            return None
-        douban_id = douban_data['target_id']
-        platform_url_list = other2http(self.douban_get_first_url(douban_id))
-        if not platform_url_list:
-            return None
-        return platform_url_list
+        return VideoDataDto(
+            title=title,
+            season_number=cn2an.cn2an(d_tv_num),
+            source="douban",
+            url=url_list,
+            img_url=img_url,
+            episodeCount=episodes_count
+        )
+
+    def main(self, name: str) -> List[VideoDataDto]:
+        douban_id_list = self.douban_select(name)
+        if not douban_id_list:
+            return []
+        video_list = []
+        for douban_id in douban_id_list:
+            video_data = self.douban_get_first_url(douban_id)
+            if video_data:
+                video_list.append(video_data)
+        return video_list
+
+
+if __name__ == '__main__':
+    DoubanSearch().get("爱情公寓")

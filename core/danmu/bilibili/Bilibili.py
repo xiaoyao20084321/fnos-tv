@@ -14,6 +14,7 @@ from tqdm import tqdm
 import Config
 import core.danmu.bilibili.bilibilidm_pb2 as Danmaku
 from Fuction import request_data
+from core.danmu.danmuType import EpisodeDataDto
 from core.danmu.base import GetDanmuBase
 
 
@@ -30,7 +31,7 @@ class GetDanmuBilibili(GetDanmuBase):
 
     def __init__(self):
         self.api_video_info = "https://api.bilibili.com/x/web-interface/view"
-        self.api_epid_cid = "https://api.bilibili.com/pgc/view/web/season"
+        self.api_epid_cid = "https://api.bilibili.com/pgc/view/web/ep/list"
         self.img_key, self.sub_key = self.getWbiKeys()
         self.config = Config.config
 
@@ -88,7 +89,7 @@ class GetDanmuBilibili(GetDanmuBase):
                     mode = 2
                 case 5:
                     mode = 1
-            _d.time = float(elem.progress / 1000)
+            _d.time = int(elem.progress / 1000)
             _d.mode = mode
             _d.style['size'] = elem.fontsize
             _d.color = elem.color
@@ -113,8 +114,8 @@ class GetDanmuBilibili(GetDanmuBase):
 
         return self.data_list
 
-    def get_episode_url(self, url):
-        url_dict = {}
+    def get_episode_url(self, url) -> List[EpisodeDataDto]:
+        data_list = []
         if url.find("bangumi/") != -1 and url.find("ep") != -1:
             epid = re.findall(r"ep(\d+)", url)[0]
             params = {
@@ -124,8 +125,13 @@ class GetDanmuBilibili(GetDanmuBase):
             res_json = res.json()
             for item in res_json.get('result', {}).get('episodes', []):
                 if item.get('section_type') == 0:
-                    url_dict[str(item.get('title'))] = item.get('share_url')
-        return url_dict
+                    data = EpisodeDataDto(
+                        url=item.get('share_url'),
+                        episodeTitle=item.get('show_title'),
+                        episodeNumber=item.get('title')
+                    )
+                    data_list.append(data)
+        return data_list
 
     def getMixinKey(self, orig: str):
         '对 imgKey 和 subKey 进行字符顺序打乱编码'
@@ -165,6 +171,6 @@ class GetDanmuBilibili(GetDanmuBase):
 
 
 if __name__ == '__main__':
-    a = GetDanmuBilibili().get(
+    a = GetDanmuBilibili().get_episode_url(
         "https://www.bilibili.com/bangumi/play/ep1231553?spm_id_from=333.337.0.0&from_spmid=666.25.episode.0")
     print()

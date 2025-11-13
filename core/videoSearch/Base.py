@@ -2,22 +2,16 @@ from typing import List
 
 import cn2an
 
+from core.videoSearch.videoSearchType import VideoDataDto
+
 
 class VideoSearchBase(object):
 
-    def get(self, name: str, tv_num: str, season) -> List[str]:
-        if tv_num is None:
-            tv_num = "一"
-        else:
-            try:
-                tv_num = cn2an.an2cn(int(tv_num))
-            except (ValueError, TypeError):
-                # 如果转换失败，保持原样
-                pass
-        ret = self.main(name, tv_num, season)
+    def get(self, name: str) -> List[VideoDataDto]:
+        ret = self.main(name)
         return ret
 
-    def main(self, name: str, tv_num: str, season) -> List[str] | None:
+    def main(self, name: str) -> List[VideoDataDto]:
         """
         搜索的主要逻辑，返回一个链接
         :return: 
