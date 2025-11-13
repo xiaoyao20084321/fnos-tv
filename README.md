@@ -2,7 +2,7 @@
 
 # 说明
 
-接口文档(完善中...)：[https://apifox.com/apidoc/shared-5ee9b9dd-7f2c-48aa-b0d6-3a81cff66329](接口文档：https://apifox.com/apidoc/shared-5ee9b9dd-7f2c-48aa-b0d6-3a81cff66329)
+接口文档(完善中...)：[https://apifox.com/apidoc/shared-5ee9b9dd-7f2c-48aa-b0d6-3a81cff66329](https://apifox.com/apidoc/shared-5ee9b9dd-7f2c-48aa-b0d6-3a81cff66329)
 
 所有的接口都是基于飞牛TV官方的接口，没有做其他的操作
 
@@ -24,6 +24,8 @@
 后端：[https://github.com/thshu/fnos-tv](https://github.com/thshu/fnos-tv)
 
 麻烦各位大佬帮忙点点Star
+
+交流群：[https://t.me/+A7GUCFz5iOY0NTc1](https://t.me/+A7GUCFz5iOY0NTc1)
 
 # 效果展示
 
@@ -93,3 +95,7 @@ RUN_AND_UPDATE_WEB默认为false，如果你需要重启容器时更新前端可
 在电脑地址栏输入IP+端口号访问即可
 
 注意！！登录的账号密码是飞牛影视的账号密码，不是飞牛系统的！！！！
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=thshu/fnos-tv&type=Timeline)](https://www.star-history.com/#thshu/fnos-tv&Timeline)
