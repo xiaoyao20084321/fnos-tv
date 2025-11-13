@@ -12,6 +12,7 @@ from tqdm import tqdm
 
 from Fuction import request_data
 from core.danmu.base import GetDanmuBase
+from core.danmu.danmuType import EpisodeDataDto
 
 
 class GetDanmuTencent(GetDanmuBase):
@@ -109,7 +110,7 @@ class GetDanmuTencent(GetDanmuBase):
             )
         return emoji_data_list
 
-    def get_episode_url(self, url: str) -> dict[str, str]:
+    def get_episode_url(self, url: str) -> List[EpisodeDataDto]:
         res = request_data("GET", url)
         res.encoding = res.apparent_encoding
         sel = parsel.Selector(res.text)
@@ -151,9 +152,13 @@ class GetDanmuTencent(GetDanmuBase):
         data_list = json_data.get("module_list_datas", [{}])[0].get('module_datas', [{}])[0].get('item_data_lists',
                                                                                                  {}).get('item_datas',
                                                                                                          [])
-        url_dict = {}
+        ret_data_list = []
         for item in data_list:
             item_params = item.get('item_params')
-            url_dict[
-                f"{item_params.get('title')}"] = f'https://v.qq.com/x/cover/{item_params.get("cid")}/{item_params.get("vid")}.html'
-        return url_dict
+            _data = EpisodeDataDto(
+                episodeTitle=item_params.get('video_subtitle'),
+                episodeNumber=item_params.get('title'),
+                url=f'https://v.qq.com/x/cover/{item_params.get("cid")}/{item_params.get("vid")}.html'
+            )
+            ret_data_list.append(_data)
+        return ret_data_list

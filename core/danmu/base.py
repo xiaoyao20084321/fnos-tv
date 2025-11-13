@@ -7,6 +7,7 @@ from requests import Response
 import concurrent.futures
 from tqdm import tqdm
 
+from core.danmu.danmuType import EpisodeDataDto
 from core.danmu.danmuType import DanMuType, RetDanMuType
 
 
@@ -80,10 +81,10 @@ class GetDanmuBase(object):
             m *= 60
         return s
 
-    def get_episode_url(self, url: str) -> dict[str, str]:
+    def get_episode_url(self, url: str) -> List[EpisodeDataDto]:
         """
         根据一个链接获取所有剧集链接，返回一个字典
         :param url: 
         :return: 
         """
-        return {}
+        return []
