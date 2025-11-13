@@ -26,7 +26,7 @@ def convert_to_ascii_sum(sid: str) -> int:
     return hash_value
 
 @cache.cached(query_string=True)
-@dandan.get("/search/anime/")
+@dandan.get("/search/anime")
 def search_anime():
     keyword = request.args.get('keyword')
     if keyword is None:
