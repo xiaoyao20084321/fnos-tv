@@ -14,5 +14,6 @@ SQLAlchemy==2.0.38
 tqdm==4.66.5
 websocket_client==1.8.0
 Flask-Caching
+tldextract
 gunicorn
 alembic
