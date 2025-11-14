@@ -1,4 +1,5 @@
 import concurrent.futures
+from datetime import datetime
 from functools import partial
 from typing import List
 
@@ -7,6 +8,7 @@ from tqdm import tqdm
 
 from Fuction import request_data
 from core.danmu.base import GetDanmuBase
+from core.danmu.danmuType import EpisodeDataDto
 
 
 class GetDanmuMgtv(GetDanmuBase):
@@ -54,15 +56,23 @@ class GetDanmuMgtv(GetDanmuBase):
 
         return self.data_list
 
-    def get_episode_url(self, url: str, url_dict={}, page=1) -> dict[str, str]:
+    def get_episode_url(self, url: str, data_list=None, page=1) -> List[EpisodeDataDto]:
+        if data_list is None:
+            data_list = []
         video_id = url.split('.')[-2].split('/')[-1]
         _data_url = f"https://pcweb.api.mgtv.com/episode/list?version=5.5.35&video_id={video_id}&page={page}&size=50"
         res = request_data("GET", url=_data_url)
 
         for item in res.json().get("data", {}).get('list', []):
-            if item.get('t1') not in url_dict.keys():
-                url_dict[item.get('t1')] = 'https://www.mgtv.com' + item.get('url')
-        if len(url_dict.keys()) < res.json().get('data', {}).get('total', len(url_dict.keys())):
+            if not any(m.episodeNumber == item.get('t1') for m in data_list):
+                data = EpisodeDataDto(
+                    episodeTitle=item.get('t2'),
+                    episodeNumber=item.get('t1'),
+                    url='https://www.mgtv.com' + item.get('url'),
+                    airDate=datetime.strptime(item.get('ts'), "%Y-%m-%d %H:%M:%S.%f")
+                )
+                data_list.append(data)
+        if len(data_list) < res.json().get('data', {}).get('total', len(data_list)):
             page += 1
-            return self.get_episode_url(url, url_dict, page)
-        return url_dict
+            return self.get_episode_url(url, data_list, page)
+        return data_list
