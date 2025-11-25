@@ -148,7 +148,7 @@ class GetDanmuIqiyi(GetDanmuBase):
                                         url=item.get('page_url'),
                                         episodeTitle=item.get('subtitle'),
                                         episodeNumber=item.get('album_order'),
-                                        airDate=datetime.fromtimestamp(int(item.get('last_update_time', '')) / 1000)
+                                        airDate=datetime.fromtimestamp(int(item.get('last_update_time', 0)) / 1000)
                                     )
                                     data_list.append(_data)
 
