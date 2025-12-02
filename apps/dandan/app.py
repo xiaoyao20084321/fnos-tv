@@ -52,7 +52,7 @@ def search_anime():
             (lambda s: [u for u in video.url if not (urlparse(u).netloc in s or s.add(urlparse(u).netloc))])(set()))
         dandan_anime_data.animeId = convert_to_ascii_sum(dandan_anime_data.animeTitle + str(video.season_number) + '/'.join(video.url))
         dandan_anime_data.bangumiId = str(dandan_anime_data.animeId)
-        cache.set('anime' + dandan_anime_data.bangumiId, video)
+        cache.set('anime' + dandan_anime_data.bangumiId, video, timeout=0)
 
         dandan_anime_data_list.append(dandan_anime_data)
     return {
@@ -85,7 +85,7 @@ def bangumi(bangumiId):
     episode_data_list:List[EpisodeDataDto] = get_episode_url(video_data.url)
     for episode_data in episode_data_list:
         episode_data.episodeId = convert_to_ascii_sum(episode_data.url)
-        cache.set('bangumi' + str(episode_data.episodeId), episode_data.url)
+        cache.set('bangumi' + str(episode_data.episodeId), episode_data.url, timeout=0)
     return {
         "errorCode": 0,
         "success": True,
