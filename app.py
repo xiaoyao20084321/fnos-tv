@@ -15,7 +15,8 @@ from core.db.model import videoConfigDb, recordDb
 
 app = Flask(__name__)
 # 配置内存缓存
-app.config['CACHE_TYPE'] = 'SimpleCache'  # 内存缓存
+app.config['CACHE_TYPE'] = 'FileSystemCache'  # 文件缓存
+app.config['CACHE_DIR'] = 'data/cache_dir'       # 缓存文件存放目录
 app.config['CACHE_DEFAULT_TIMEOUT'] = 300  # 默认 5 分钟
 
 cache.init_app(app)
